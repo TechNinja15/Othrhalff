@@ -95,4 +95,4 @@ No friction. Just flow.
 
 ## License
 
-All rights reserved.
+All rights reserved...
