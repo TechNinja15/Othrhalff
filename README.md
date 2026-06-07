@@ -8,7 +8,6 @@ No fake perfection.
 No forced identity.  
 Just people, thoughts, and connections.
 
----
 
 
 ---
