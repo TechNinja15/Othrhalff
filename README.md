@@ -10,7 +10,6 @@ Just people, thoughts, and connections.
 
 
 
----
 
 ## ⚙️ How It Works
 
