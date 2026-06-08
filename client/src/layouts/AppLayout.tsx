@@ -9,6 +9,7 @@ import { Ghost, Search, MessageCircle, Bell, CalendarHeart, User, MessageSquareP
 import dynamic from 'next/dynamic';
 import { StarField } from '../components/StarField';
 import { supabase } from '../lib/supabase';
+import { AuthPromptModal } from '../components/AuthPromptModal';
 
 const VideoCall = dynamic(() => import('../components/VideoCall').then(mod => mod.VideoCall), {
   ssr: false
@@ -60,6 +61,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     };
   }, [currentUser]);
 
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
   const isActive = (path: string) => pathname === path;
 
   // Paths that should display the sidebar and bottom navigation
@@ -72,14 +75,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     pathname.startsWith('/chat') ||
     pathname.startsWith('/virtual-date');
 
+  const isPublicConfessions = pathname === '/confessions' && !currentUser;
+
   // Determine if we should show the StarField background animation
   const showStars =
     ['/home', '/matches', '/notifications', '/confessions'].includes(pathname) ||
     pathname.startsWith('/chat/');
 
-  if (!currentUser || !isAuthenticatedPath) {
+  if ((!currentUser && !isPublicConfessions) || !isAuthenticatedPath) {
     return <>{children}</>;
   }
+
+  const handleNavClick = (path: string) => {
+    if (!currentUser && path !== '/confessions') {
+      setShowAuthModal(true);
+    } else {
+      router.push(path);
+    }
+  };
 
   const navItems = [
     { path: '/home', icon: Search, label: 'Discover' },
@@ -98,7 +111,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <div className="p-8 pb-4">
           <div
             className="group flex items-center gap-3 cursor-pointer select-none"
-            onClick={() => router.push('/home')}
+            onClick={() => handleNavClick('/home')}
           >
             <div className="relative">
               <Ghost className="w-8 h-8 text-neon drop-shadow-[0_0_8px_rgba(255,0,127,0.5)] group-hover:rotate-12 transition-transform duration-300" />
@@ -127,7 +140,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             return (
               <button
                 key={item.path}
-                onClick={() => router.push(item.path)}
+                onClick={() => handleNavClick(item.path)}
                 className={`w-full relative group flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-300 ease-out border overflow-hidden
                   ${active
                     ? 'bg-gray-900/80 border-neon/30 text-white shadow-[0_0_20px_rgba(255,0,127,0.1)]'
@@ -175,7 +188,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {/* User Profile Card */}
         <div className="p-4 border-t border-gray-900/50 bg-black/50">
           <div
-            onClick={() => router.push('/profile')}
+            onClick={() => handleNavClick('/profile')}
             className="relative group p-3 rounded-2xl bg-gradient-to-b from-black to-black border border-gray-800 hover:border-neon/30 transition-all duration-300 cursor-pointer overflow-hidden"
           >
             {/* Glow Effect */}
@@ -189,7 +202,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     <img src={currentUser.avatar} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">{currentUser?.anonymousId?.slice(-2)}</span>
+                      <span className="text-white text-xs font-bold">{currentUser?.anonymousId ? currentUser.anonymousId.slice(-2) : '??'}</span>
                     </div>
                   )}
                 </div>
@@ -229,7 +242,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {!pathname.includes('/chat/') && (
           <nav className="md:hidden h-20 bg-black/90 backdrop-blur border-t border-gray-900 flex justify-around items-center px-2 z-40 fixed bottom-0 left-0 right-0 pb-safe">
             <button
-              onClick={() => router.push('/home')}
+              onClick={() => handleNavClick('/home')}
               className={`p-2 flex flex-col items-center gap-1 ${isActive('/home') ? 'text-neon' : 'text-gray-600'}`}
             >
               <div className={`p-1 rounded-xl ${isActive('/home') ? 'bg-neon/10' : ''}`}>
@@ -239,7 +252,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={() => router.push('/matches')}
+              onClick={() => handleNavClick('/matches')}
               className={`p-2 flex flex-col items-center gap-1 ${isActive('/matches') ? 'text-neon' : 'text-gray-600'}`}
             >
               <div className={`p-1 rounded-xl ${isActive('/matches') ? 'bg-neon/10' : ''}`}>
@@ -249,7 +262,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={() => router.push('/confessions')}
+              onClick={() => handleNavClick('/confessions')}
               className={`p-2 flex flex-col items-center gap-1 ${isActive('/confessions') ? 'text-neon' : 'text-gray-600'}`}
             >
               <div className={`p-1 rounded-xl ${isActive('/confessions') ? 'bg-neon/10' : ''}`}>
@@ -259,7 +272,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={() => router.push('/virtual-date')}
+              onClick={() => handleNavClick('/virtual-date')}
               className={`p-2 flex flex-col items-center gap-1 ${isActive('/virtual-date') ? 'text-neon' : 'text-gray-600'}`}
             >
               <div className={`p-1 rounded-xl ${isActive('/virtual-date') ? 'bg-neon/10' : ''}`}>
@@ -269,7 +282,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             </button>
 
             <button
-              onClick={() => router.push('/profile')}
+              onClick={() => handleNavClick('/profile')}
               className={`p-2 flex flex-col items-center gap-1 ${isActive('/profile') ? 'text-neon' : 'text-gray-600'}`}
             >
               <div className={`p-1 rounded-xl ${isActive('/profile') ? 'bg-neon/10' : ''}`}>
@@ -294,6 +307,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           callSessionId={callSessionId}
         />
       )}
+      <AuthPromptModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </div>
   );
 };

@@ -1,8 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { StarField } from '../../src/components/StarField';
-import { Ghost, Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Ghost, Sparkles, X } from 'lucide-react';
+
+interface AuthPromptModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
 
 const baseAscii = `                                                                                                     
                                                                                                      
@@ -39,6 +44,7 @@ const baseAscii = `
                      *******                                               *******                   
                      *******                                               *******                   
                      *******                                               *******                   
+                     *******                                               *******                   
                      *******   #****##          #****##          #*****#   *******                   
                      ******* ##********#      #********##      ##********# *******                   
                      *******#***********##   #************#   #************#******                   
@@ -56,12 +62,10 @@ const baseAscii = `
                                                                                                      
                                                                                                      `;
 
-// Helper to generate the animated frames from the static ASCII base
 const getGhostFrame = (frame: number): string => {
   const lines = baseAscii.split('\n');
 
   if (frame === 1 || frame === 2) {
-    // Wink right eye (rows 19-22, which are indexes 18-21 0-indexed)
     lines[18] = lines[18].replace("              ##*###         #******#", "                             #******#");
     lines[19] = lines[19].replace("             #****#*          ******#", "             #######          ******#");
     lines[20] = lines[20].replace("             #*****#          *******", "                              *******");
@@ -69,13 +73,11 @@ const getGhostFrame = (frame: number): string => {
   }
 
   if (frame === 1) {
-    // Puckered mouth (row 25, index 24)
     lines[24] = lines[24].replace(
       "                    *******                                               *******",
       "                    *******                      (*)                      *******"
     );
   } else if (frame === 2) {
-    // Open mouth blowing kiss (row 25, index 24)
     lines[24] = lines[24].replace(
       "                    *******                                               *******",
       "                    *******                      (O)                      *******"
@@ -91,11 +93,14 @@ interface FloatingHeart {
   delay: string;
 }
 
-export default function MaintenancePage() {
+export const AuthPromptModal: React.FC<AuthPromptModalProps> = ({ isOpen, onClose }) => {
+  const router = useRouter();
   const [frame, setFrame] = useState(0);
   const [hearts, setHearts] = useState<FloatingHeart[]>([]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const interval = setInterval(() => {
       setFrame((prev) => {
         const next = (prev + 1) % 3; // 0, 1, 2
@@ -104,14 +109,14 @@ export default function MaintenancePage() {
           const newHearts: FloatingHeart[] = [
             {
               id: Date.now(),
-              drift: `${(Math.random() - 0.5) * 80}px`,
+              drift: `${(Math.random() - 0.5) * 60}px`,
               delay: '0s',
             }
           ];
           if (spawnTwo) {
             newHearts.push({
               id: Date.now() + 1,
-              drift: `${(Math.random() - 0.5) * 80}px`,
+              drift: `${(Math.random() - 0.5) * 60}px`,
               delay: '0.25s',
             });
           }
@@ -129,16 +134,26 @@ export default function MaintenancePage() {
     }, 800);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSignUp = () => {
+    onClose();
+    router.push('/login');
+  };
 
   return (
-    <div className="relative min-h-screen bg-black text-white flex flex-col justify-between items-center px-4 overflow-hidden selection:bg-neon selection:text-white font-sans">
-      {/* Background StarField */}
-      <StarField />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/85 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
-      {/* Embedded CSS for custom float animations */}
+      {/* CSS for custom float animations */}
       <style>{`
-        @keyframes heartFloat {
+        @keyframes heartFloatModal {
           0% {
             transform: translateY(10px) translateX(0) scale(0.6) rotate(0deg);
             opacity: 0;
@@ -147,62 +162,50 @@ export default function MaintenancePage() {
             opacity: 1;
           }
           100% {
-            transform: translateY(-180px) translateX(var(--drift)) scale(1.5) rotate(15deg);
+            transform: translateY(-120px) translateX(var(--drift)) scale(1.4) rotate(15deg);
             opacity: 0;
           }
         }
-        .floating-heart {
-          animation: heartFloat 2.0s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        .modal-floating-heart {
+          animation: heartFloatModal 2.0s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
           animation-delay: var(--delay);
-        }
-
-        @keyframes cardFloat {
-          0%, 100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-6px);
-          }
-        }
-        .animate-card-float {
-          animation: cardFloat 6s ease-in-out infinite;
         }
       `}</style>
 
-      {/* Spacer for vertical layout */}
-      <div className="h-6" />
+      {/* Glassmorphic Modal Card */}
+      <div className="relative w-full max-w-md bg-neutral-950/80 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_0_50px_rgba(255,0,127,0.15)] z-10 text-center">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white rounded-full hover:bg-white/5 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
 
-      {/* Main Glassmorphic Card (Borderless) */}
-      <main className="w-full max-w-2xl bg-neutral-950/40 backdrop-blur-xl rounded-3xl p-6 sm:p-10 shadow-[0_0_50px_rgba(255,0,127,0.1)] relative z-10 animate-card-float my-auto">
-        {/* Brand Name Header */}
-        <header className="text-center mb-6">
-          <div className="inline-flex items-center gap-3 justify-center select-none mb-1">
-            <div className="relative">
-              <Ghost className="w-8 h-8 text-neon drop-shadow-[0_0_8px_rgba(255,0,127,0.5)] rotate-6" />
-              <Sparkles className="w-3.5 h-3.5 text-white absolute -top-1 -right-1 animate-pulse" />
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tighter uppercase leading-none">
-              Othr<span className="text-neon">Halff</span>
-            </h1>
+        {/* Mascot Header */}
+        <div className="inline-flex items-center gap-2 justify-center select-none mb-4">
+          <div className="relative">
+            <Ghost className="w-6 h-6 text-neon drop-shadow-[0_0_8px_rgba(255,0,127,0.5)] rotate-6" />
+            <Sparkles className="w-2.5 h-2.5 text-white absolute -top-1 -right-1 animate-pulse" />
           </div>
-          <p className="text-[10px] font-bold text-neutral-500 tracking-[0.4em] uppercase">
-            Campus Dating
-          </p>
-        </header>
+          <span className="text-xl font-black text-white tracking-tighter uppercase">
+            Othr<span className="text-neon">Halff</span>
+          </span>
+        </div>
 
-        {/* Dynamic ASCII Logo blowing a kiss (Auto-height to prevent head cropping) */}
-        <div className="flex flex-col items-center justify-center py-2 mb-6 relative">
-          <div className="relative w-full max-w-lg flex items-center justify-center overflow-visible">
-            <pre className="text-[3.8px] xs:text-[4.8px] sm:text-[6.2px] md:text-[7.2px] leading-[1.0] text-[#ff007f] filter drop-shadow-[0_0_8px_rgba(255,0,127,0.5)] font-mono font-bold select-none whitespace-pre text-center">
+        {/* Dynamic ASCII Logo blowing a kiss */}
+        <div className="flex flex-col items-center justify-center mb-6 relative">
+          <div className="relative w-full max-w-[240px] flex items-center justify-center overflow-visible">
+            <pre className="text-[2.2px] sm:text-[2.6px] leading-[1.0] text-[#ff007f] filter drop-shadow-[0_0_6px_rgba(255,0,127,0.5)] font-mono font-bold select-none whitespace-pre text-center">
               {getGhostFrame(frame)}
             </pre>
-            
-            {/* Floating Hearts Container, aligned around the mouth line */}
+
+            {/* Floating Hearts Container */}
             <div className="absolute top-[48%] left-[50.5%] pointer-events-none">
               {hearts.map((heart) => (
                 <span
                   key={heart.id}
-                  className="absolute floating-heart text-[#ff007f] text-2xl filter drop-shadow-[0_0_6px_rgba(255,0,127,0.8)]"
+                  className="absolute modal-floating-heart text-[#ff007f] text-xl filter drop-shadow-[0_0_4px_rgba(255,0,127,0.8)]"
                   style={{
                     '--drift': heart.drift,
                     '--delay': heart.delay,
@@ -215,28 +218,32 @@ export default function MaintenancePage() {
           </div>
         </div>
 
-        {/* Maintenance Message with Poetic Quote */}
-        <div className="text-center space-y-6">
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-snug">
-            Othrhalff is under renovation...
+        {/* Message */}
+        <div className="space-y-3 mb-6">
+          <h2 className="text-lg sm:text-xl font-black tracking-tight text-white uppercase">
+            Signup to access other sections
           </h2>
-          <div className="space-y-2 max-w-md mx-auto">
-            <p className="text-sm sm:text-base text-neutral-400 font-medium italic tracking-wide leading-relaxed">
-              "In a sea of anonymous faces, searching for the spark; two wandering halves will find their light in the dark."
-            </p>
-            <p className="text-[10px] text-neutral-500 font-black tracking-[0.3em] uppercase">
-              — OthrHalff
-            </p>
-          </div>
+          <p className="text-xs sm:text-sm text-neutral-400 font-medium leading-relaxed max-w-xs mx-auto">
+            Create an account or log in to get a match, view profiles, confessions, comment and chat with other students.
+          </p>
         </div>
-      </main>
 
-      {/* Footer Branding Info */}
-      <footer className="w-full text-center py-8 z-10">
-        <p className="text-[11px] font-bold text-neutral-600 tracking-widest uppercase">
-          © {new Date().getFullYear()} OTHRHALFF. All rights reserved.
-        </p>
-      </footer>
+        {/* Action Buttons */}
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={handleSignUp}
+            className="w-full py-3 bg-neon text-white font-bold text-sm uppercase tracking-wider rounded-full hover:scale-[1.02] transition-transform shadow-[0_0_20px_rgba(255,0,127,0.4)] hover:shadow-[0_0_30px_rgba(255,0,127,0.6)]"
+          >
+            Log In / Sign Up
+          </button>
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-transparent text-gray-500 hover:text-gray-300 font-bold text-sm uppercase tracking-wider rounded-full border border-gray-800 hover:border-gray-700 transition-colors"
+          >
+            Stay as Guest
+          </button>
+        </div>
+      </div>
     </div>
   );
-}
+};

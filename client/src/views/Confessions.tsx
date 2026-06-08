@@ -9,8 +9,7 @@ import { analytics } from '../utils/analytics';
 
 import { getRandomQuote } from '../data/loadingQuotes';
 import { LoadingState } from '../components/LoadingState';
-
-// ... other imports
+import { AuthPromptModal } from '../components/AuthPromptModal';
 
 type SortOption = 'newest' | 'oldest' | 'popular' | 'discussed';
 
@@ -76,6 +75,7 @@ const LoadingOverlay = () => (
 export const Confessions: React.FC = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     // 1. ZERO-FLICKER INIT: Read cache synchronously
     const [confessions, setConfessions] = useState<Confession[]>([]);
@@ -120,7 +120,7 @@ export const Confessions: React.FC = () => {
 
     // 2. NETWORK SYNC: Fetch fresh data
     useEffect(() => {
-        if (!currentUser || !supabase) return;
+        if (!supabase) return;
 
         const init = async () => {
             // Reset page and hasMore for fresh fetch
@@ -135,7 +135,7 @@ export const Confessions: React.FC = () => {
         const channel = supabase.channel('confessions-realtime')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'confessions' }, (payload) => {
                 const p = payload.new as any;
-                if (p.user_id === currentUser.id) return; // Ignore own posts
+                if (currentUser && p.user_id === currentUser.id) return; // Ignore own posts
                 const newConfession: Confession = {
                     id: p.id, userId: 'Anonymous', text: p.text || '', imageUrl: p.image_url,
                     timestamp: new Date(p.created_at).getTime(), likes: 0, reactions: {}, comments: [],
@@ -155,7 +155,7 @@ export const Confessions: React.FC = () => {
                 const confessionId = record.confession_id;
 
                 // Skip own reactions — already handled optimistically in handleReaction
-                if (record.user_id === currentUser.id) return;
+                if (currentUser && record.user_id === currentUser.id) return;
 
                 setConfessions(prev => {
                     const updated = prev.map(c => {
@@ -185,7 +185,7 @@ export const Confessions: React.FC = () => {
                 const confessionId = record.confession_id;
 
                 // Skip own comments — already added optimistically in handleCommentSubmit
-                if (record.user_id === currentUser.id) return;
+                if (currentUser && record.user_id === currentUser.id) return;
 
                 setConfessions(prev => {
                     const updated = prev.map(c => {
@@ -210,7 +210,7 @@ export const Confessions: React.FC = () => {
 
     // 3. Fetch Logic
     const fetchConfessions = async (pageIndex: number, reset = false) => {
-        if (!currentUser || !supabase) return;
+        if (!supabase) return;
         if (pageIndex > 0) setIsLoadingMore(true);
 
         const from = pageIndex * POSTS_PER_PAGE;
@@ -252,9 +252,12 @@ export const Confessions: React.FC = () => {
 
         // Fetch votes in parallel (fire immediately, await result below)
         const postIds = posts.map(p => p.id);
-        const votesPromise = supabase.from('poll_votes').select('confession_id, option_id').in('confession_id', postIds).eq('user_id', currentUser.id);
-
-        const { data: myVotes } = await votesPromise;
+        let myVotes: any[] = [];
+        if (currentUser) {
+            const votesPromise = supabase.from('poll_votes').select('confession_id, option_id').in('confession_id', postIds).eq('user_id', currentUser.id);
+            const { data } = await votesPromise;
+            myVotes = data || [];
+        }
         const myVoteMap = new Map();
         myVotes?.forEach(v => myVoteMap.set(v.confession_id, v.option_id));
 
@@ -276,7 +279,7 @@ export const Confessions: React.FC = () => {
                 university: p.university, type: p.type as 'text' | 'poll',
                 pollOptions: p.poll_options?.map((opt: any) => ({ id: opt.id, text: opt.text, votes: opt.vote_count })),
                 userVote: myVoteMap.get(p.id),
-                userReaction: p.confession_reactions.find((r: any) => r.user_id === currentUser.id)?.emoji
+                userReaction: currentUser ? p.confession_reactions.find((r: any) => r.user_id === currentUser.id)?.emoji : undefined
             };
         });
 
@@ -312,6 +315,10 @@ export const Confessions: React.FC = () => {
     // --- Handlers (Preserved) ---
 
     const handleReactionClick = (e: React.MouseEvent, id: string) => {
+        if (!currentUser) {
+            setShowAuthModal(true);
+            return;
+        }
         if (activeReactionMenu === id) { setActiveReactionMenu(null); setMenuPosition(null); }
         else {
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -321,9 +328,13 @@ export const Confessions: React.FC = () => {
     };
 
     const handlePost = async () => {
+        if (!currentUser) {
+            setShowAuthModal(true);
+            return;
+        }
         if (!isPollMode && !newText.trim() && !newImage) return;
         if (isPollMode && (pollOptions.filter(o => o.trim()).length < 2 || !newText.trim())) return;
-        if (!currentUser || !supabase) return;
+        if (!supabase) return;
 
         setIsPosting(true);
 
@@ -406,7 +417,11 @@ export const Confessions: React.FC = () => {
     };
 
     const handlePollVote = async (confessionId: string, optionId: string) => {
-        if (!currentUser || !supabase) return;
+        if (!currentUser) {
+            setShowAuthModal(true);
+            return;
+        }
+        if (!supabase) return;
         setConfessions(prev => {
             const updated = prev.map(c => {
                 if (c.id !== confessionId || !c.pollOptions) return c;
@@ -423,7 +438,10 @@ export const Confessions: React.FC = () => {
     };
 
     const handleReaction = async (id: string, emoji: string) => {
-        if (!currentUser) return;
+        if (!currentUser) {
+            setShowAuthModal(true);
+            return;
+        }
         setActiveReactionMenu(null); setMenuPosition(null);
         const confession = confessions.find(c => c.id === id);
         const previousReaction = confession?.userReaction;
@@ -481,7 +499,11 @@ export const Confessions: React.FC = () => {
 
     const handleCommentSubmit = async (confessionId: string) => {
         const text = commentInputs[confessionId];
-        if (!text?.trim() || !currentUser) return;
+        if (!text?.trim()) return;
+        if (!currentUser) {
+            setShowAuthModal(true);
+            return;
+        }
 
         const optimisticComment = {
             id: 'opt-' + Date.now(),
@@ -515,7 +537,7 @@ export const Confessions: React.FC = () => {
         } catch (err) { console.error(err); }
     };
 
-    const isAmityStudent = currentUser?.university?.toLowerCase().includes('amity');
+    const isAmityStudent = !currentUser || currentUser?.university?.toLowerCase().includes('amity');
 
     if (!isAmityStudent) {
         return (
@@ -621,7 +643,24 @@ export const Confessions: React.FC = () => {
                                         <div className="space-y-2 mb-3 max-h-96 overflow-y-auto">
                                             {conf.comments?.map(c => <div key={c.id} className="bg-gray-900/40 p-2 rounded-lg"><div className="flex justify-between mb-1"><span className="text-[10px] font-bold text-gray-500">{c.userId}</span></div><p className="text-xs text-gray-300">{c.text}</p></div>)}
                                         </div>
-                                        <div className="flex gap-2"><input className="flex-1 bg-black border border-gray-800 rounded-lg px-3 py-2 text-xs text-white" placeholder="Comment..." value={commentInputs[conf.id] || ''} onChange={e => setCommentInputs(p => ({ ...p, [conf.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleCommentSubmit(conf.id)} /><button onClick={() => handleCommentSubmit(conf.id)} className="p-2 bg-gray-800 text-white rounded-lg"><Send className="w-3.5 h-3.5" /></button></div>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                className="flex-1 bg-black border border-gray-800 rounded-lg px-3 py-2 text-xs text-white" 
+                                                placeholder="Comment..." 
+                                                value={commentInputs[conf.id] || ''} 
+                                                onChange={e => setCommentInputs(p => ({ ...p, [conf.id]: e.target.value }))} 
+                                                onKeyDown={e => e.key === 'Enter' && handleCommentSubmit(conf.id)} 
+                                                onFocus={(e) => {
+                                                    if (!currentUser) {
+                                                        setShowAuthModal(true);
+                                                        e.currentTarget.blur();
+                                                    }
+                                                }}
+                                            />
+                                            <button onClick={() => handleCommentSubmit(conf.id)} className="p-2 bg-gray-800 text-white rounded-lg">
+                                                <Send className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -638,11 +677,46 @@ export const Confessions: React.FC = () => {
                 <div className="max-w-xl w-full pointer-events-auto">
                     <div className="bg-black border border-gray-800 rounded-full p-2 shadow-2xl flex items-center gap-2">
                         {newImage && !isPollMode && <div className="relative w-10 h-10 ml-1"><img src={newImage} className="w-full h-full object-cover rounded-lg" /><button onClick={() => setNewImage(null)} className="absolute -top-1 -right-1 bg-gray-800 rounded-full p-0.5"><X className="w-2.5 h-2.5" /></button></div>}
-                        <button onClick={() => { setIsPollMode(!isPollMode); setNewImage(null); }} className={`p-2 rounded-full ${isPollMode ? 'text-white bg-gray-900' : 'text-gray-500'}`}><BarChart2 className="w-5 h-5" /></button>
+                        <button 
+                            onClick={() => { 
+                                if (!currentUser) {
+                                    setShowAuthModal(true);
+                                    return;
+                                }
+                                setIsPollMode(!isPollMode); 
+                                setNewImage(null); 
+                            }} 
+                            className={`p-2 rounded-full ${isPollMode ? 'text-white bg-gray-900' : 'text-gray-500'}`}
+                        >
+                            <BarChart2 className="w-5 h-5" />
+                        </button>
                         <div className="h-4 w-px bg-gray-800"></div>
                         <input id="confession-image-input" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                        <button onClick={() => document.getElementById('confession-image-input')?.click()} disabled={isPollMode} className="p-2 text-gray-500"><ImageIcon className="w-5 h-5" /></button>
-                        <input value={newText} onChange={e => setNewText(e.target.value)} placeholder={isPollMode ? "Poll question..." : "Confess anonymously..."} className="flex-1 bg-transparent text-white px-2 outline-none text-xs font-medium" />
+                        <button 
+                            onClick={() => {
+                                if (!currentUser) {
+                                    setShowAuthModal(true);
+                                    return;
+                                }
+                                document.getElementById('confession-image-input')?.click();
+                            }} 
+                            disabled={isPollMode} 
+                            className="p-2 text-gray-500"
+                        >
+                            <ImageIcon className="w-5 h-5" />
+                        </button>
+                        <input 
+                            value={newText} 
+                            onChange={e => setNewText(e.target.value)} 
+                            placeholder={isPollMode ? "Poll question..." : "Confess anonymously..."} 
+                            className="flex-1 bg-transparent text-white px-2 outline-none text-xs font-medium" 
+                            onFocus={(e) => {
+                                if (!currentUser) {
+                                    setShowAuthModal(true);
+                                    e.currentTarget.blur();
+                                }
+                            }}
+                        />
                         <button onClick={handlePost} disabled={isPosting || (!newText.trim() && !newImage)} className="p-2.5 bg-white rounded-full text-black hover:bg-gray-200">{isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}</button>
                     </div>
                     {isPollMode && (
@@ -657,6 +731,11 @@ export const Confessions: React.FC = () => {
             {/* Modal */}
             {activeReactionMenu && (<><div className="fixed inset-0 z-40 bg-transparent" onClick={() => { setActiveReactionMenu(null); setMenuPosition(null); }}></div><div className="fixed z-50 bg-black/80 backdrop-blur-md border border-gray-800 rounded-2xl p-2" style={menuPosition ? { top: menuPosition.top, left: menuPosition.left } : {}}><div className="flex gap-1">{REACTIONS.map(emoji => <button key={emoji} onClick={() => handleReaction(activeReactionMenu, emoji)} className="text-2xl hover:scale-125 transition-transform p-2">{emoji}</button>)}</div></div></>)}
             {viewImage && <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setViewImage(null)}><img src={viewImage} className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} /></div>}
+            
+            <AuthPromptModal
+                isOpen={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+            />
         </div>
     );
 };
