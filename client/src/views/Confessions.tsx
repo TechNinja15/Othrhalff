@@ -847,10 +847,6 @@ export const Confessions: React.FC = () => {
                         {newImage && !isPollMode && <div className="relative w-10 h-10 ml-1"><img src={newImage} className="w-full h-full object-cover rounded-lg" /><button onClick={() => setNewImage(null)} className="absolute -top-1 -right-1 bg-gray-800 rounded-full p-0.5"><X className="w-2.5 h-2.5" /></button></div>}
                         <button 
                             onClick={() => { 
-                                if (!currentUser) {
-                                    setShowAuthModal(true);
-                                    return;
-                                }
                                 setIsPollMode(!isPollMode); 
                                 setNewImage(null); 
                             }} 
@@ -862,10 +858,6 @@ export const Confessions: React.FC = () => {
                         <input id="confession-image-input" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                         <button 
                             onClick={() => {
-                                if (!currentUser) {
-                                    setShowAuthModal(true);
-                                    return;
-                                }
                                 document.getElementById('confession-image-input')?.click();
                             }} 
                             disabled={isPollMode} 
@@ -878,12 +870,6 @@ export const Confessions: React.FC = () => {
                             onChange={e => setNewText(e.target.value)} 
                             placeholder={isPollMode ? "Poll question..." : "Confess anonymously..."} 
                             className="flex-1 bg-transparent text-white px-2 outline-none text-xs font-medium" 
-                            onFocus={(e) => {
-                                if (!currentUser) {
-                                    setShowAuthModal(true);
-                                    e.currentTarget.blur();
-                                }
-                            }}
                         />
                         <button onClick={handlePost} disabled={isPosting || (!newText.trim() && !newImage)} className="p-2.5 bg-white rounded-full text-black hover:bg-gray-200">{isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}</button>
                     </div>
