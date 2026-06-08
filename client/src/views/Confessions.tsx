@@ -10,6 +10,7 @@ import { analytics } from '../utils/analytics';
 import { getRandomQuote } from '../data/loadingQuotes';
 import { LoadingState } from '../components/LoadingState';
 import { AuthPromptModal } from '../components/AuthPromptModal';
+import { CHHATTISGARH_COLLEGES, BRANCH_CATEGORIES } from '../constants';
 
 type SortOption = 'newest' | 'oldest' | 'popular' | 'discussed';
 
@@ -19,23 +20,27 @@ const CACHE_KEY = 'otherhalf_confessions_v4';
 const CACHE_EXPIRY_KEY = 'otherhalf_confessions_expiry_v4';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const readCache = (): Confession[] => {
+const readCache = (mode: 'campus' | 'global'): Confession[] => {
     try {
-        const expiry = localStorage.getItem(CACHE_EXPIRY_KEY);
+        const cacheKey = `otherhalf_confessions_${mode}_v4`;
+        const expiryKey = `otherhalf_confessions_expiry_${mode}_v4`;
+        const expiry = localStorage.getItem(expiryKey);
         if (expiry && Date.now() > parseInt(expiry, 10)) {
-            localStorage.removeItem(CACHE_KEY);
-            localStorage.removeItem(CACHE_EXPIRY_KEY);
+            localStorage.removeItem(cacheKey);
+            localStorage.removeItem(expiryKey);
             return [];
         }
-        const cached = localStorage.getItem(CACHE_KEY);
+        const cached = localStorage.getItem(cacheKey);
         return cached ? JSON.parse(cached) : [];
     } catch { return []; }
 };
 
-const writeCache = (data: Confession[]) => {
+const writeCache = (mode: 'campus' | 'global', data: Confession[]) => {
     try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-        localStorage.setItem(CACHE_EXPIRY_KEY, String(Date.now() + CACHE_DURATION));
+        const cacheKey = `otherhalf_confessions_${mode}_v4`;
+        const expiryKey = `otherhalf_confessions_expiry_${mode}_v4`;
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+        localStorage.setItem(expiryKey, String(Date.now() + CACHE_DURATION));
     } catch { /* quota exceeded */ }
 };
 
@@ -72,10 +77,49 @@ const LoadingOverlay = () => (
     </div>
 );
 
+const parseUniversity = (univStr: string) => {
+    if (!univStr) return { college: '', department: '' };
+    const parts = univStr.split('|');
+    return {
+        college: parts[0]?.trim() || '',
+        department: parts[1]?.trim() || ''
+    };
+};
+
 export const Confessions: React.FC = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const [feedMode, setFeedMode] = useState<'campus' | 'global'>(currentUser ? 'campus' : 'global');
+    const [guestUniversity, setGuestUniversity] = useState<string | null>(null);
+    const [guestBranch, setGuestBranch] = useState<string | null>(null);
+    const [showGuestSetup, setShowGuestSetup] = useState(false);
+    const [customAuthMessage, setCustomAuthMessage] = useState<string | undefined>(undefined);
+
+    // Temp inputs for guest setup modal
+    const [tempCollege, setTempCollege] = useState(CHHATTISGARH_COLLEGES[0]);
+    const [customCollege, setCustomCollege] = useState('');
+    const [tempBranchCategory, setTempBranchCategory] = useState('');
+    const [tempBranch, setTempBranch] = useState('');
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const storedUniv = localStorage.getItem('otherhalf_guest_university');
+            const storedBranch = localStorage.getItem('otherhalf_guest_branch');
+            setGuestUniversity(storedUniv);
+            setGuestBranch(storedBranch);
+            if (storedUniv) {
+                setTempCollege(CHHATTISGARH_COLLEGES.includes(storedUniv) ? storedUniv : 'Other');
+                if (!CHHATTISGARH_COLLEGES.includes(storedUniv)) {
+                    setCustomCollege(storedUniv);
+                }
+            }
+            if (storedBranch) {
+                setTempBranchCategory('Other');
+                setTempBranch(storedBranch);
+            }
+        }
+    }, []);
 
     // 1. ZERO-FLICKER INIT: Read cache synchronously
     const [confessions, setConfessions] = useState<Confession[]>([]);
@@ -83,12 +127,15 @@ export const Confessions: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const cached = readCache();
+        const cached = readCache(feedMode);
         if (cached && cached.length > 0) {
             setConfessions(cached);
             setIsLoading(false);
+        } else {
+            setConfessions([]);
+            setIsLoading(true);
         }
-    }, []);
+    }, [feedMode]);
 
     const [newText, setNewText] = useState('');
     const [newImage, setNewImage] = useState<string | null>(null);
@@ -122,6 +169,10 @@ export const Confessions: React.FC = () => {
     useEffect(() => {
         if (!supabase) return;
 
+        const targetUniv = currentUser
+            ? currentUser.university
+            : (typeof window !== 'undefined' ? localStorage.getItem('otherhalf_guest_university') : null);
+
         const init = async () => {
             // Reset page and hasMore for fresh fetch
             setPage(0);
@@ -136,6 +187,15 @@ export const Confessions: React.FC = () => {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'confessions' }, (payload) => {
                 const p = payload.new as any;
                 if (currentUser && p.user_id === currentUser.id) return; // Ignore own posts
+
+                // Realtime filtering based on feedMode
+                if (targetUniv) {
+                    const postUniv = p.university || '';
+                    const isMatch = postUniv.toLowerCase().startsWith(targetUniv.toLowerCase());
+                    if (feedMode === 'campus' && !isMatch) return;
+                    if (feedMode === 'global' && isMatch) return;
+                }
+
                 const newConfession: Confession = {
                     id: p.id, userId: 'Anonymous', text: p.text || '', imageUrl: p.image_url,
                     timestamp: new Date(p.created_at).getTime(), likes: 0, reactions: {}, comments: [],
@@ -144,11 +204,10 @@ export const Confessions: React.FC = () => {
                 };
                 setConfessions(prev => {
                     const updated = [newConfession, ...prev];
-                    writeCache(updated);
+                    writeCache(feedMode, updated);
                     return updated;
                 });
             })
-            // ... (Other handlers kept same) ...
             .on('postgres_changes', { event: '*', schema: 'public', table: 'confession_reactions' }, (payload) => {
                 const event = payload.eventType;
                 const record = (event === 'DELETE' ? payload.old : payload.new) as any;
@@ -176,7 +235,7 @@ export const Confessions: React.FC = () => {
                         }
                         return { ...c, reactions: newReactions, likes: newLikes };
                     });
-                    writeCache(updated);
+                    writeCache(feedMode, updated);
                     return updated;
                 });
             })
@@ -205,7 +264,7 @@ export const Confessions: React.FC = () => {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [currentUser, sortType]);
+    }, [currentUser, sortType, feedMode]);
 
 
     // 3. Fetch Logic
@@ -215,6 +274,10 @@ export const Confessions: React.FC = () => {
 
         const from = pageIndex * POSTS_PER_PAGE;
         const to = from + POSTS_PER_PAGE - 1;
+
+        const targetUniv = currentUser
+            ? currentUser.university
+            : (typeof window !== 'undefined' ? localStorage.getItem('otherhalf_guest_university') : null);
 
         let query = supabase.from('confessions')
             .select(`
@@ -230,6 +293,12 @@ export const Confessions: React.FC = () => {
             .order('created_at', { foreignTable: 'confession_comments', ascending: false })
             .limit(3, { foreignTable: 'confession_comments' })
             .range(from, to);
+
+        if (feedMode === 'campus' && targetUniv) {
+            query = query.ilike('university', `${targetUniv}%`);
+        } else if (feedMode === 'global' && targetUniv) {
+            query = query.not('university', 'ilike', `${targetUniv}%`);
+        }
 
         if (sortType === 'newest') {
             query = query.order('created_at', { ascending: false });
@@ -287,7 +356,7 @@ export const Confessions: React.FC = () => {
             setConfessions(formatted);
             setIsLoading(false);
             // Update Cache (Safely)
-            writeCache(formatted);
+            writeCache(feedMode, formatted);
         } else {
             setConfessions(prev => {
                 const existing = new Set(prev.map(c => c.id));
@@ -327,13 +396,22 @@ export const Confessions: React.FC = () => {
         }
     };
 
-    const handlePost = async () => {
-        if (!currentUser) {
-            setShowAuthModal(true);
-            return;
-        }
-        if (!isPollMode && !newText.trim() && !newImage) return;
-        if (isPollMode && (pollOptions.filter(o => o.trim()).length < 2 || !newText.trim())) return;
+    const handleGuestSetupSubmit = async () => {
+        const finalCollege = tempCollege === 'Other' ? customCollege.trim() : tempCollege;
+        const finalBranch = tempBranchCategory === 'Other' ? tempBranch.trim() : tempBranchCategory;
+        if (!finalCollege || !finalBranch) return;
+
+        localStorage.setItem('otherhalf_guest_university', finalCollege);
+        localStorage.setItem('otherhalf_guest_branch', finalBranch);
+        setGuestUniversity(finalCollege);
+        setGuestBranch(finalBranch);
+        setShowGuestSetup(false);
+
+        // Auto submit post after configuring college
+        await submitPost(finalCollege, finalBranch);
+    };
+
+    const submitPost = async (college: string, branch: string) => {
         if (!supabase) return;
 
         setIsPosting(true);
@@ -349,14 +427,14 @@ export const Confessions: React.FC = () => {
             likes: 0,
             reactions: {},
             comments: [],
-            university: currentUser.university || 'Amity',
+            university: `${college}|${branch}`,
             type: isPollMode ? 'poll' : 'text',
             pollOptions: isPollMode ? pollOptions.filter(o => o.trim()).map((t, i) => ({ id: 'opt-opt-' + i, text: t, votes: 0 })) : undefined
         };
 
         setConfessions(prev => {
             const updated = [optimisticPost, ...prev];
-            writeCache(updated);
+            writeCache(feedMode, updated);
             return updated;
         });
 
@@ -364,31 +442,48 @@ export const Confessions: React.FC = () => {
         setNewText(''); setNewImage(null); setIsPollMode(false); setPollOptions(['', '']);
 
         try {
+            const userId = currentUser ? currentUser.id : 'a3e96230-6a78-4215-bcd0-882e1af61127';
+
             // Check daily limits...
             const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
             const { data: dailyPosts, error: limitError } = await supabase
-                .from('confessions').select('type, image_url').eq('user_id', currentUser.id).gte('created_at', startOfDay.toISOString());
+                .from('confessions').select('type, image_url').eq('user_id', userId).gte('created_at', startOfDay.toISOString());
 
             if (limitError) throw limitError;
             const totalPosts = dailyPosts?.length || 0;
-            const totalPolls = dailyPosts?.filter(p => p.type === 'poll').length || 0;
-            const totalImages = dailyPosts?.filter(p => p.image_url).length || 0;
 
-            if (totalPosts >= 3) {
-                alert("Daily limit reached (3 posts)!");
-                // Revert optimistic update
-                setConfessions(prev => prev.filter(p => p.id !== optimisticId));
-                setIsPosting(false);
-                return;
+            if (currentUser) {
+                if (totalPosts >= 3) {
+                    alert("Daily limit reached (3 posts)!");
+                    setConfessions(prev => prev.filter(p => p.id !== optimisticId));
+                    setIsPosting(false);
+                    return;
+                }
+            } else {
+                // Guests are limited to 1 post per day.
+                const lastPostStr = localStorage.getItem('otherhalf_guest_last_post_time');
+                if (lastPostStr) {
+                    const lastPostTime = parseInt(lastPostStr, 10);
+                    const timeDiff = Date.now() - lastPostTime;
+                    if (timeDiff < 24 * 60 * 60 * 1000) {
+                        const hoursLeft = Math.ceil((24 * 60 * 60 * 1000 - timeDiff) / (1000 * 60 * 60));
+                        alert(`Guests can only post once a day. You can post again in ${hoursLeft} hours!`);
+                        setConfessions(prev => prev.filter(p => p.id !== optimisticId));
+                        setIsPosting(false);
+                        return;
+                    }
+                }
             }
-            // ... (other limit checks omitted for brevity, logic remains similar)
 
             // Insert
             const { data: post, error } = await supabase
                 .from('confessions')
                 .insert({
-                    user_id: currentUser.id, university: currentUser.university,
-                    text: optimisticPost.text, image_url: optimisticPost.imageUrl, type: optimisticPost.type
+                    user_id: userId,
+                    university: `${college}|${branch}`,
+                    text: optimisticPost.text,
+                    image_url: optimisticPost.imageUrl,
+                    type: optimisticPost.type
                 })
                 .select().single();
 
@@ -401,10 +496,14 @@ export const Confessions: React.FC = () => {
 
             analytics.confessionPost(isPollMode ? 'poll' : newImage ? 'image' : 'text');
 
+            if (!currentUser) {
+                localStorage.setItem('otherhalf_guest_last_post_time', String(Date.now()));
+            }
+
             // Replace optimistic with real
             setConfessions(prev => {
                 const updated = prev.map(p => p.id === optimisticId ? { ...p, id: post!.id } : p);
-                writeCache(updated);
+                writeCache(feedMode, updated);
                 return updated;
             });
 
@@ -414,6 +513,33 @@ export const Confessions: React.FC = () => {
             // Revert
             setConfessions(prev => prev.filter(p => p.id !== optimisticId));
         } finally { setIsPosting(false); }
+    };
+
+    const handlePost = async () => {
+        if (!isPollMode && !newText.trim() && !newImage) return;
+        if (isPollMode && (pollOptions.filter(o => o.trim()).length < 2 || !newText.trim())) return;
+
+        if (!currentUser) {
+            if (!guestUniversity || !guestBranch) {
+                setShowGuestSetup(true);
+                return;
+            }
+            // Enforce rate limit (1 post per 24 hours)
+            const lastPostStr = localStorage.getItem('otherhalf_guest_last_post_time');
+            if (lastPostStr) {
+                const lastPostTime = parseInt(lastPostStr, 10);
+                const timeDiff = Date.now() - lastPostTime;
+                if (timeDiff < 24 * 60 * 60 * 1000) {
+                    const hoursLeft = Math.ceil((24 * 60 * 60 * 1000 - timeDiff) / (1000 * 60 * 60));
+                    alert(`Guests can only post once a day. You can post again in ${hoursLeft} hours!`);
+                    setShowAuthModal(true);
+                    return;
+                }
+            }
+            await submitPost(guestUniversity, guestBranch);
+        } else {
+            await submitPost(currentUser.university, currentUser.branch || 'General');
+        }
     };
 
     const handlePollVote = async (confessionId: string, optionId: string) => {
@@ -431,7 +557,7 @@ export const Confessions: React.FC = () => {
                     pollOptions: c.pollOptions!.map(opt => opt.id === optionId ? { ...opt, votes: opt.votes + 1 } : opt)
                 };
             });
-            writeCache(updated);
+            writeCache(feedMode, updated);
             return updated;
         });
         try { await supabase.from('poll_votes').insert({ confession_id: confessionId, option_id: optionId, user_id: currentUser.id }); } catch (err) { console.error(err); fetchConfessions(0, true); }
@@ -456,7 +582,7 @@ export const Confessions: React.FC = () => {
                 else newReactions[emoji] = (newReactions[emoji] || 0) + 1;
                 return { ...c, userReaction: newUserReaction, reactions: newReactions, likes: Object.values(newReactions).reduce((a, b) => a + b, 0) };
             });
-            writeCache(updated);
+            writeCache(feedMode, updated);
             return updated;
         });
 
@@ -490,7 +616,7 @@ export const Confessions: React.FC = () => {
                             }))
                         };
                     });
-                    writeCache(updated);
+                    writeCache(feedMode, updated);
                     return updated;
                 });
             }
@@ -517,7 +643,7 @@ export const Confessions: React.FC = () => {
                 if (c.id !== confessionId) return c;
                 return { ...c, comments: [...(c.comments || []), optimisticComment] };
             });
-            writeCache(updated);
+            writeCache(feedMode, updated);
             return updated;
         });
 
@@ -537,19 +663,7 @@ export const Confessions: React.FC = () => {
         } catch (err) { console.error(err); }
     };
 
-    const isAmityStudent = !currentUser || currentUser?.university?.toLowerCase().includes('amity');
-
-    if (!isAmityStudent) {
-        return (
-            <div className="h-full bg-transparent text-white flex flex-col relative overflow-hidden">
-                <div className="p-4 border-b border-gray-900 flex items-center justify-between bg-black z-20 shrink-0">
-                    <button onClick={() => navigate.push('/home')} className="p-2 hover:bg-gray-800 rounded-full transition-colors hidden md:block"><ArrowLeft className="w-6 h-6 text-gray-400" /></button>
-                    <div><h1 className="text-xl font-black uppercase">Campus Confessions</h1></div>
-                </div>
-                <div className="flex-1 flex items-center justify-center"><p className="text-white">Amity Only</p></div>
-            </div>
-        );
-    }
+    // isAmityStudent restriction removed to support other colleges in campus and global feeds
 
     return (
         <div className="h-full w-full bg-transparent text-white flex flex-col relative overflow-hidden font-sans">
@@ -557,21 +671,62 @@ export const Confessions: React.FC = () => {
             <div className="flex-none p-4 border-b border-gray-800/50 bg-black/20 backdrop-blur-md z-40 sticky top-0 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate.push('/home')} className="p-2 hover:bg-gray-800 rounded-full hidden md:block"><ArrowLeft className="w-6 h-6 text-gray-400" /></button>
-                    <div><h1 className="text-xl font-bold uppercase tracking-tight">Campus Confessions</h1><p className="text-xs text-gray-500 font-mono">Amity University</p></div>
+                    <div>
+                        <h1 className="text-xl font-bold uppercase tracking-tight">Confessions</h1>
+                        <p className="text-[10px] text-gray-500 font-mono">
+                            {feedMode === 'campus' 
+                                ? (currentUser?.university || guestUniversity || 'My Campus') 
+                                : 'Global Feed'}
+                        </p>
+                    </div>
                 </div>
-                {/* Sort Menu */}
-                <div className="relative">
-                    <button onClick={() => setShowSortMenu(!showSortMenu)} className={`p-2 rounded-full transition-colors ${showSortMenu ? 'bg-white text-black' : 'bg-gray-900 text-gray-400'}`}><SlidersHorizontal className="w-5 h-5" /></button>
-                    {showSortMenu && (
-                        <>
-                            <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)}></div>
-                            <div className="absolute right-0 top-12 w-48 bg-gray-900 border border-gray-800 rounded-lg shadow-xl z-20">
-                                {['newest', 'oldest'].map((type) => (
-                                    <button key={type} onClick={() => { setSortType(type as SortOption); setShowSortMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-400 hover:bg-gray-800 capitalize">{type}</button>
-                                ))}
-                            </div>
-                        </>
-                    )}
+
+                {/* Tabs & Sort */}
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="flex bg-gray-950/60 p-1 rounded-full border border-white/5">
+                        <button
+                            onClick={() => {
+                                if (!currentUser) {
+                                    setCustomAuthMessage("Login to see your campus");
+                                    setShowAuthModal(true);
+                                    return;
+                                }
+                                setFeedMode('campus');
+                            }}
+                            className={`px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all ${
+                                feedMode === 'campus'
+                                    ? 'bg-white text-black font-extrabold shadow-[0_2px_10px_rgba(255,255,255,0.1)]'
+                                    : 'text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            Campus
+                        </button>
+                        <button
+                            onClick={() => setFeedMode('global')}
+                            className={`px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all ${
+                                feedMode === 'global'
+                                    ? 'bg-white text-black font-extrabold shadow-[0_2px_10px_rgba(255,255,255,0.1)]'
+                                    : 'text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            Global
+                        </button>
+                    </div>
+
+                    {/* Sort Menu */}
+                    <div className="relative">
+                        <button onClick={() => setShowSortMenu(!showSortMenu)} className={`p-2 rounded-full transition-colors ${showSortMenu ? 'bg-white text-black' : 'bg-gray-900 text-gray-400'}`}><SlidersHorizontal className="w-5 h-5" /></button>
+                        {showSortMenu && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)}></div>
+                                <div className="absolute right-0 top-12 w-48 bg-gray-900 border border-gray-800 rounded-lg shadow-xl z-20">
+                                    {['newest', 'oldest'].map((type) => (
+                                        <button key={type} onClick={() => { setSortType(type as SortOption); setShowSortMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-400 hover:bg-gray-800 capitalize">{type}</button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -581,90 +736,103 @@ export const Confessions: React.FC = () => {
 
                 {!isLoading && (
                     <div className="space-y-4">
-                        {confessions.map(conf => (
-                            <div key={conf.id} className={`bg-gray-900/30 backdrop-blur-md border rounded-xl p-4 ${conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'border-neon/50' : 'border-gray-800/50'}`}>
-                                {/* Card Content Matches User's + Existing */}
-                                <div className="flex gap-3 mb-3">
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'bg-neon text-white' : 'bg-gray-900 border border-gray-800'}`}>
-                                        {conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? <Crown className="w-5 h-5" /> : <span className="text-sm font-bold text-gray-500">?</span>}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`text-sm font-bold ${conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'text-neon' : 'text-gray-300'}`}>{conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'Team Other Half' : conf.userId}</span>
+                        {confessions.map(conf => {
+                            const { college, department } = parseUniversity(conf.university);
+                            const viewerCollege = currentUser ? currentUser.university : guestUniversity;
+                            return (
+                                <div key={conf.id} className={`bg-gray-900/30 backdrop-blur-md border rounded-xl p-4 ${conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'border-neon/50' : 'border-gray-800/50'}`}>
+                                    {/* Card Content Matches User's + Existing */}
+                                    <div className="flex gap-3 mb-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'bg-neon text-white' : 'bg-gray-900 border border-gray-800'}`}>
+                                            {conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? <Crown className="w-5 h-5" /> : <span className="text-sm font-bold text-gray-500">?</span>}
                                         </div>
-                                        <div className="flex justify-between mt-0.5">
-                                            <p className="text-[10px] text-gray-600 uppercase font-bold">{conf.university}</p>
-                                            <span className="text-[10px] text-gray-600 font-mono">{new Date(conf.timestamp).toLocaleDateString()}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <p className="text-gray-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap">{conf.text}</p>
-                                {conf.imageUrl && <div className="mb-4 rounded-lg overflow-hidden border border-gray-900 bg-black aspect-video" onClick={() => setViewImage(conf.imageUrl || null)}><img src={conf.imageUrl} className="w-full h-full object-cover" /></div>}
-
-                                {conf.type === 'poll' && conf.pollOptions && (
-                                    <div className="mb-4 space-y-2 bg-gray-900/30 p-3 rounded-lg border border-gray-900">
-                                        {conf.pollOptions.map(option => {
-                                            const total = conf.pollOptions?.reduce((a, b) => a + b.votes, 0) || 0;
-                                            const pct = total > 0 ? Math.round((option.votes / total) * 100) : 0;
-                                            return (
-                                                <button key={option.id} onClick={() => handlePollVote(conf.id, option.id)} disabled={!!conf.userVote} className="w-full relative h-9 rounded border border-gray-800 overflow-hidden">
-                                                    <div className="absolute top-0 left-0 h-full bg-gray-800" style={{ width: `${pct}%` }} />
-                                                    <div className="absolute inset-0 flex items-center justify-between px-3 z-10"><span className="text-xs font-medium text-gray-400">{option.text}</span>{conf.userVote && <span className="text-[10px] font-bold text-gray-500">{pct}%</span>}</div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-
-                                <div className="flex flex-col gap-2 border-t border-gray-900 pt-3">
-                                    {conf.reactions && Object.values(conf.reactions).some(v => v > 0) && (
-                                        <div className="flex flex-wrap gap-1.5 mb-2">{Object.entries(conf.reactions).map(([e, c]) => c > 0 && <span key={e} className="inline-flex items-center gap-1 bg-gray-900 text-[10px] px-2 py-0.5 rounded-full text-gray-400 border border-gray-800">{e} <b>{c}</b></span>)}</div>
-                                    )}
-
-                                    {/* Comment Preview (Attraction Feature) */}
-                                    {!expandedComments[conf.id] && conf.comments && conf.comments.length > 0 && (
-                                        <div className="mb-3 bg-gray-900/20 p-2 rounded-lg border border-gray-800/50" onClick={() => toggleComments(conf.id)}>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-[10px] font-bold text-gray-500">{conf.comments[conf.comments.length - 1].userId}</span>
-                                                <span className="text-[9px] text-gray-600">• Recent</span>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className={`text-sm font-bold ${conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'text-neon' : 'text-gray-300'}`}>{conf.id === '46c46dcc-ad75-487d-b5a4-70b03081c222' ? 'Team Other Half' : conf.userId}</span>
+                                                {feedMode === 'global' && college && (
+                                                    <span className="bg-[#ff007f]/10 text-neon text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-[#ff007f]/20">
+                                                        {college.split(',')[0]}
+                                                    </span>
+                                                )}
                                             </div>
-                                            <p className="text-xs text-gray-400 truncate italic">"{conf.comments[conf.comments.length - 1].text.length > 60 ? conf.comments[conf.comments.length - 1].text.slice(0, 60) + '...' : conf.comments[conf.comments.length - 1].text}"</p>
+                                            <div className="flex justify-between mt-0.5">
+                                                <p className="text-[10px] text-gray-600 uppercase font-bold">
+                                                    {feedMode === 'campus' 
+                                                        ? (department || 'Campus Post') 
+                                                        : [college, department].filter(Boolean).join(' • ')}
+                                                </p>
+                                                <span className="text-[10px] text-gray-600 font-mono">{new Date(conf.timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="text-gray-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap">{conf.text}</p>
+                                    {conf.imageUrl && <div className="mb-4 rounded-lg overflow-hidden border border-gray-900 bg-black aspect-video" onClick={() => setViewImage(conf.imageUrl || null)}><img src={conf.imageUrl} className="w-full h-full object-cover" /></div>}
+
+                                    {conf.type === 'poll' && conf.pollOptions && (
+                                        <div className="mb-4 space-y-2 bg-gray-900/30 p-3 rounded-lg border border-gray-900">
+                                            {conf.pollOptions.map(option => {
+                                                const total = conf.pollOptions?.reduce((a, b) => a + b.votes, 0) || 0;
+                                                const pct = total > 0 ? Math.round((option.votes / total) * 100) : 0;
+                                                return (
+                                                    <button key={option.id} onClick={() => handlePollVote(conf.id, option.id)} disabled={!!conf.userVote} className="w-full relative h-9 rounded border border-gray-800 overflow-hidden">
+                                                        <div className="absolute top-0 left-0 h-full bg-gray-800" style={{ width: `${pct}%` }} />
+                                                        <div className="absolute inset-0 flex items-center justify-between px-3 z-10"><span className="text-xs font-medium text-gray-400">{option.text}</span>{conf.userVote && <span className="text-[10px] font-bold text-gray-500">{pct}%</span>}</div>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
 
-                                    <div className="flex items-center gap-3">
-                                        <button onClick={(e) => handleReactionClick(e, conf.id)} className="flex items-center gap-2 text-gray-500 hover:text-white text-xs px-2 py-1 rounded-md hover:bg-gray-900"><SmilePlus className="w-4 h-4" /> React</button>
-                                        <button onClick={() => toggleComments(conf.id)} className="flex items-center gap-2 text-gray-500 hover:text-blue-400 text-xs px-2 py-1 rounded-md hover:bg-gray-900"><MessageCircle className="w-4 h-4" /> {conf.commentCount ?? conf.comments?.length ?? 0}</button>
-                                    </div>
-                                </div>
+                                    <div className="flex flex-col gap-2 border-t border-gray-900 pt-3">
+                                        {conf.reactions && Object.values(conf.reactions).some(v => v > 0) && (
+                                            <div className="flex flex-wrap gap-1.5 mb-2">{Object.entries(conf.reactions).map(([e, c]) => c > 0 && <span key={e} className="inline-flex items-center gap-1 bg-gray-900 text-[10px] px-2 py-0.5 rounded-full text-gray-400 border border-gray-800">{e} <b>{c}</b></span>)}</div>
+                                        )}
 
-                                {expandedComments[conf.id] && (
-                                    <div className="mt-3 pt-3 border-t border-gray-900">
-                                        <div className="space-y-2 mb-3 max-h-96 overflow-y-auto">
-                                            {conf.comments?.map(c => <div key={c.id} className="bg-gray-900/40 p-2 rounded-lg"><div className="flex justify-between mb-1"><span className="text-[10px] font-bold text-gray-500">{c.userId}</span></div><p className="text-xs text-gray-300">{c.text}</p></div>)}
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <input 
-                                                className="flex-1 bg-black border border-gray-800 rounded-lg px-3 py-2 text-xs text-white" 
-                                                placeholder="Comment..." 
-                                                value={commentInputs[conf.id] || ''} 
-                                                onChange={e => setCommentInputs(p => ({ ...p, [conf.id]: e.target.value }))} 
-                                                onKeyDown={e => e.key === 'Enter' && handleCommentSubmit(conf.id)} 
-                                                onFocus={(e) => {
-                                                    if (!currentUser) {
-                                                        setShowAuthModal(true);
-                                                        e.currentTarget.blur();
-                                                    }
-                                                }}
-                                            />
-                                            <button onClick={() => handleCommentSubmit(conf.id)} className="p-2 bg-gray-800 text-white rounded-lg">
-                                                <Send className="w-3.5 h-3.5" />
-                                            </button>
+                                        {/* Comment Preview (Attraction Feature) */}
+                                        {!expandedComments[conf.id] && conf.comments && conf.comments.length > 0 && (
+                                            <div className="mb-3 bg-gray-900/20 p-2 rounded-lg border border-gray-800/50" onClick={() => toggleComments(conf.id)}>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[10px] font-bold text-gray-500">{conf.comments[conf.comments.length - 1].userId}</span>
+                                                    <span className="text-[9px] text-gray-600">• Recent</span>
+                                                </div>
+                                                <p className="text-xs text-gray-400 truncate italic">"{conf.comments[conf.comments.length - 1].text.length > 60 ? conf.comments[conf.comments.length - 1].text.slice(0, 60) + '...' : conf.comments[conf.comments.length - 1].text}"</p>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center gap-3">
+                                            <button onClick={(e) => handleReactionClick(e, conf.id)} className="flex items-center gap-2 text-gray-500 hover:text-white text-xs px-2 py-1 rounded-md hover:bg-gray-900"><SmilePlus className="w-4 h-4" /> React</button>
+                                            <button onClick={() => toggleComments(conf.id)} className="flex items-center gap-2 text-gray-500 hover:text-blue-400 text-xs px-2 py-1 rounded-md hover:bg-gray-900"><MessageCircle className="w-4 h-4" /> {conf.commentCount ?? conf.comments?.length ?? 0}</button>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        ))}
+
+                                    {expandedComments[conf.id] && (
+                                        <div className="mt-3 pt-3 border-t border-gray-900">
+                                            <div className="space-y-2 mb-3 max-h-96 overflow-y-auto">
+                                                {conf.comments?.map(c => <div key={c.id} className="bg-gray-900/40 p-2 rounded-lg"><div className="flex justify-between mb-1"><span className="text-[10px] font-bold text-gray-500">{c.userId}</span></div><p className="text-xs text-gray-300">{c.text}</p></div>)}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    className="flex-1 bg-black border border-gray-800 rounded-lg px-3 py-2 text-xs text-white" 
+                                                    placeholder="Comment..." 
+                                                    value={commentInputs[conf.id] || ''} 
+                                                    onChange={e => setCommentInputs(p => ({ ...p, [conf.id]: e.target.value }))} 
+                                                    onKeyDown={e => e.key === 'Enter' && handleCommentSubmit(conf.id)} 
+                                                    onFocus={(e) => {
+                                                        if (!currentUser) {
+                                                            setShowAuthModal(true);
+                                                            e.currentTarget.blur();
+                                                        }
+                                                    }}
+                                                />
+                                                <button onClick={() => handleCommentSubmit(conf.id)} className="p-2 bg-gray-800 text-white rounded-lg">
+                                                    <Send className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -734,8 +902,118 @@ export const Confessions: React.FC = () => {
             
             <AuthPromptModal
                 isOpen={showAuthModal}
-                onClose={() => setShowAuthModal(false)}
+                onClose={() => {
+                    setShowAuthModal(false);
+                    setCustomAuthMessage(undefined);
+                }}
+                message={customAuthMessage}
             />
+
+            {/* Guest Setup Modal */}
+            {showGuestSetup && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setShowGuestSetup(false)} />
+                    
+                    {/* Glassmorphic Card */}
+                    <div className="relative w-full max-w-md bg-neutral-950/80 backdrop-blur-2xl rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_0_50px_rgba(255,0,127,0.15)] z-10">
+                        {/* Close Button */}
+                        <button
+                            onClick={() => setShowGuestSetup(false)}
+                            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white rounded-full hover:bg-white/5 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="text-center mb-6">
+                            <div className="inline-flex items-center gap-2 justify-center select-none mb-3">
+                                <Ghost className="w-5 h-5 text-neon drop-shadow-[0_0_8px_rgba(255,0,127,0.5)]" />
+                                <span className="text-lg font-black text-white tracking-tighter uppercase">
+                                    Post Info
+                                </span>
+                            </div>
+                            <h3 className="text-base sm:text-lg font-bold text-white uppercase">Tell us your college</h3>
+                            <p className="text-xs text-neutral-400 mt-1">
+                                We need this to show your post on your college campus feed and label it in the global feed.
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* College Selection */}
+                            <div>
+                                <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1.5">Select College</label>
+                                <select
+                                    value={tempCollege}
+                                    onChange={(e) => {
+                                        setTempCollege(e.target.value);
+                                        if (e.target.value !== 'Other') setCustomCollege('');
+                                    }}
+                                    className="w-full bg-gray-900 border border-gray-800 text-white text-xs px-3 py-2.5 rounded-xl outline-none focus:border-neon transition-colors"
+                                >
+                                    {CHHATTISGARH_COLLEGES.map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Custom College Input if "Other" is selected */}
+                            {tempCollege === 'Other' && (
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1.5">Enter College Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="E.g. Amity University"
+                                        value={customCollege}
+                                        onChange={(e) => setCustomCollege(e.target.value)}
+                                        className="w-full bg-gray-900 border border-gray-800 text-white text-xs px-3 py-2.5 rounded-xl outline-none focus:border-neon transition-colors"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Department Selection */}
+                            <div>
+                                <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1.5">Select Department / Branch</label>
+                                <select
+                                    value={tempBranchCategory}
+                                    onChange={(e) => {
+                                        setTempBranchCategory(e.target.value);
+                                        if (e.target.value !== 'Other') setTempBranch('');
+                                    }}
+                                    className="w-full bg-gray-900 border border-gray-800 text-white text-xs px-3 py-2.5 rounded-xl outline-none focus:border-neon transition-colors"
+                                >
+                                    <option value="">Choose department...</option>
+                                    {BRANCH_CATEGORIES.map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Custom Branch Input if "Other" is selected */}
+                            {tempBranchCategory === 'Other' && (
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1.5">Enter Department / Branch</label>
+                                    <input
+                                        type="text"
+                                        placeholder="E.g. Mechanical Engineering"
+                                        value={tempBranch}
+                                        onChange={(e) => setTempBranch(e.target.value)}
+                                        className="w-full bg-gray-900 border border-gray-800 text-white text-xs px-3 py-2.5 rounded-xl outline-none focus:border-neon transition-colors"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Submit Button */}
+                            <button
+                                onClick={handleGuestSetupSubmit}
+                                disabled={!tempCollege || (tempCollege === 'Other' && !customCollege.trim()) || !tempBranchCategory || (tempBranchCategory === 'Other' && !tempBranch.trim())}
+                                className="w-full py-3 bg-neon disabled:opacity-50 text-white font-bold text-sm uppercase tracking-wider rounded-full hover:scale-[1.02] transition-transform shadow-[0_0_20px_rgba(255,0,127,0.4)] mt-2"
+                            >
+                                Save & Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

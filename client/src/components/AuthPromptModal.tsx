@@ -7,6 +7,7 @@ import { Ghost, Sparkles, X } from 'lucide-react';
 interface AuthPromptModalProps {
   isOpen: boolean;
   onClose: () => void;
+  message?: string;
 }
 
 const baseAscii = `                                                                                                     
@@ -93,7 +94,7 @@ interface FloatingHeart {
   delay: string;
 }
 
-export const AuthPromptModal: React.FC<AuthPromptModalProps> = ({ isOpen, onClose }) => {
+export const AuthPromptModal: React.FC<AuthPromptModalProps> = ({ isOpen, onClose, message }) => {
   const router = useRouter();
   const [frame, setFrame] = useState(0);
   const [hearts, setHearts] = useState<FloatingHeart[]>([]);
@@ -221,10 +222,10 @@ export const AuthPromptModal: React.FC<AuthPromptModalProps> = ({ isOpen, onClos
         {/* Message */}
         <div className="space-y-3 mb-6">
           <h2 className="text-lg sm:text-xl font-black tracking-tight text-white uppercase">
-            Signup to access other sections
+            {message || "Signup to access other sections"}
           </h2>
           <p className="text-xs sm:text-sm text-neutral-400 font-medium leading-relaxed max-w-xs mx-auto">
-            Create an account or log in to get a match, view profiles, confessions, comment and chat with other students.
+            {message ? "Create an account or log in to view and connect with your college community." : "Create an account or log in to get a match, view profiles, confessions, comment and chat with other students."}
           </p>
         </div>
 
