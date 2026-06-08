@@ -1,9 +1,8 @@
 import React from 'react';
-import { useRouter as useNavigate } from 'next/navigation';
+import Link from 'next/link';
 import { ArrowLeft, Instagram, Linkedin, Github } from 'lucide-react';
 
 export const Developers: React.FC = () => {
-  const navigate = useNavigate();
 
   const team = [
     {
@@ -62,12 +61,12 @@ export const Developers: React.FC = () => {
         <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/5 blur-[120px] rounded-full" />
       </div>
 
-      <button
-        onClick={() => navigate.push('/')}
+      <Link
+        href="/"
         className="fixed top-6 left-6 text-gray-400 hover:text-white flex items-center gap-2 transition-colors z-20"
       >
         <ArrowLeft className="w-6 h-6" /> Back
-      </button>
+      </Link>
 
       <div className="relative z-10 w-full max-w-6xl animate-fade-in-up mt-8">
         <h1 className="text-4xl md:text-5xl font-black text-white text-center mb-4 uppercase tracking-tighter">
