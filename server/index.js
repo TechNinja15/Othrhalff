@@ -162,6 +162,62 @@ app.post('/api/accept-match', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Post Guest Confession API (Service role key bypasses RLS)
+app.post('/api/post-guest-confession', async (req, res) => {
+  try {
+    const { college, branch, text, imageUrl, type, pollOptions } = req.body;
+
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials missing in server env (Check SUPABASE_SERVICE_ROLE_KEY)');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const userId = 'a3e96230-6a78-4215-bcd0-882e1af61127'; // Guest proxy profile ID (Ram)
+
+    const { data: post, error } = await supabase
+      .from('confessions')
+      .insert({
+        user_id: userId,
+        university: `${college}|${branch}`,
+        text: text,
+        image_url: imageUrl,
+        type: type
+      })
+      .select().single();
+
+    if (error) throw error;
+
+    if (type === 'poll' && post && pollOptions && Array.isArray(pollOptions)) {
+      const optionsToInsert = pollOptions.filter(o => o.trim()).map(optText => ({
+        confession_id: post.id,
+        text: optText
+      }));
+      if (optionsToInsert.length > 0) {
+        const { error: pollError } = await supabase.from('poll_options').insert(optionsToInsert);
+        if (pollError) throw pollError;
+      }
+    }
+
+    const { data: finalPost, error: fetchError } = await supabase
+      .from('confessions')
+      .select('*, poll_options(*)')
+      .eq('id', post.id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    res.json({ success: true, post: finalPost });
+
+  } catch (error) {
+    console.error('Error posting guest confession:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/', (req, res) => {
   res.send('Backend API is running. Use the Vercel Frontend to interact.');
 });

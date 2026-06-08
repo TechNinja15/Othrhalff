@@ -439,23 +439,50 @@ export const Confessions: React.FC = () => {
                 }
             }
 
-            // Insert
-            const { data: post, error } = await supabase
-                .from('confessions')
-                .insert({
-                    user_id: userId,
-                    university: `${college}|${branch}`,
-                    text: optimisticPost.text,
-                    image_url: optimisticPost.imageUrl,
-                    type: optimisticPost.type
-                })
-                .select().single();
+            let post: any;
+            if (currentUser) {
+                // Logged-in user: insert directly via Supabase client (auth token included)
+                const { data, error } = await supabase
+                    .from('confessions')
+                    .insert({
+                        user_id: userId,
+                        university: `${college}|${branch}`,
+                        text: optimisticPost.text,
+                        image_url: optimisticPost.imageUrl,
+                        type: optimisticPost.type
+                    })
+                    .select().single();
 
-            if (error) throw error;
+                if (error) throw error;
+                post = data;
 
-            if (isPollMode && post) {
-                const optionsToInsert = pollOptions.filter(o => o.trim()).map(text => ({ confession_id: post.id, text }));
-                await supabase.from('poll_options').insert(optionsToInsert);
+                if (isPollMode && post) {
+                    const optionsToInsert = pollOptions.filter(o => o.trim()).map(text => ({ confession_id: post.id, text }));
+                    await supabase.from('poll_options').insert(optionsToInsert);
+                }
+            } else {
+                // Guest user: call the backend proxy endpoint to bypass RLS
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || '';
+                const response = await fetch(`${apiUrl}/api/post-guest-confession`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        college,
+                        branch,
+                        text: optimisticPost.text,
+                        imageUrl: optimisticPost.imageUrl,
+                        type: optimisticPost.type,
+                        pollOptions: isPollMode ? pollOptions : undefined
+                    })
+                });
+
+                if (!response.ok) {
+                    const errRes = await response.json();
+                    throw new Error(errRes.error || 'Failed to post guest confession');
+                }
+
+                const resData = await response.json();
+                post = resData.post;
             }
 
             analytics.confessionPost(isPollMode ? 'poll' : newImage ? 'image' : 'text');
@@ -474,8 +501,12 @@ export const Confessions: React.FC = () => {
         } catch (err) {
             console.error('Post error:', err);
             alert('Failed to post.');
-            // Revert
-            setConfessions(prev => prev.filter(p => p.id !== optimisticId));
+            // Revert state and cache
+            setConfessions(prev => {
+                const reverted = prev.filter(p => p.id !== optimisticId);
+                writeCache(feedMode, reverted);
+                return reverted;
+            });
         } finally { setIsPosting(false); }
     };
 
