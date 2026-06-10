@@ -5,7 +5,7 @@ import { useCall } from '../context/CallContext';
 import { usePresence } from '../context/PresenceContext';
 import { MatchProfile, Message } from '../types';
 import { useToast } from '../context/ToastContext';
-import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Smile, Check, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Gamepad2, Check, CheckCheck, ArrowDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PermissionModal } from '../components/PermissionModal';
 import { blockUser, unblockUser, checkBlockStatus } from '../services/blockService';
@@ -15,8 +15,16 @@ import { analytics } from '../utils/analytics';
 import { getOptimizedUrl } from '../utils/image';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, LocalMessage } from '../lib/db';
+import Dexie from 'dexie';
 
 import { getRandomQuote } from '../data/loadingQuotes';
+import { 
+  WYR_TEMPLATES, 
+  hashString, 
+  shuffleArray, 
+  TwoTruthsLieState, 
+  WouldYouRatherState 
+} from '../data/games';
 
 const MESSAGES_PER_PAGE = 50;
 
@@ -49,6 +57,22 @@ const ChatSkeleton = () => {
   );
 };
 
+const mapSupabaseMessageToLocal = (msg: any, matchId: string): LocalMessage => {
+  const rawText = msg.text || msg.content;
+  const textStr = rawText ? (typeof rawText === 'object' ? (rawText.text || rawText.content || '') : rawText) : '';
+  return {
+    id: msg.id,
+    match_id: matchId,
+    sender_id: msg.sender_id,
+    text: textStr.replace('[SYSTEM]', '').trim(),
+    created_at: new Date(msg.created_at).getTime(),
+    is_system: textStr.startsWith('[SYSTEM]') || textStr.startsWith('📞'),
+    is_read: msg.is_read,
+    status: 'sent',
+    reaction: msg.reaction || undefined
+  };
+};
+
 export const Chat: React.FC = () => {
   const params = useParams();
   const id = params?.id as string;
@@ -58,7 +82,7 @@ export const Chat: React.FC = () => {
   const [partner, setPartner] = useState<MatchProfile | null>(null);
 
   const liveMessages = useLiveQuery(
-    () => db.messages.where('match_id').equals(matchId).sortBy('created_at'),
+    () => db.messages.where('[match_id+created_at]').between([matchId, Dexie.minKey], [matchId, Dexie.maxKey]).toArray(),
     [matchId]
   );
 
@@ -71,7 +95,8 @@ export const Chat: React.FC = () => {
       timestamp: m.created_at,
       isSystem: m.is_system,
       isRead: m.is_read,
-      status: m.status
+      status: m.status,
+      reaction: m.reaction
     }));
   }, [liveMessages]);
 
@@ -97,18 +122,52 @@ export const Chat: React.FC = () => {
 
   const [newMessage, setNewMessage] = useState('');
   const [showMenu, setShowMenu] = useState(false);
+  const [wallpaper, setWallpaper] = useState<'midnight' | 'cyberpunk' | 'nebula' | 'slate'>(() => {
+    try {
+      const saved = localStorage.getItem('othrhalff_chat_wallpaper');
+      return (saved as any) || 'midnight';
+    } catch {
+      return 'midnight';
+    }
+  });
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+
+  const changeWallpaper = (w: 'midnight' | 'cyberpunk' | 'nebula' | 'slate') => {
+    setWallpaper(w);
+    try {
+      localStorage.setItem('othrhalff_chat_wallpaper', w);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleMessageDoubleClick = async (msgId: string, currentReaction?: string) => {
+    const newReaction = currentReaction === '❤️' ? undefined : '❤️';
+    try {
+      await db.messages.update(msgId, { reaction: newReaction });
+    } catch (err) {
+      console.error('Failed to update message reaction in local DB:', err);
+    }
+  };
   const [isStartingCall, setIsStartingCall] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [isBlockedByThem, setIsBlockedByThem] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [oldestLoaded, setOldestLoaded] = useState<number>(Date.now());
+  const [oldestLoaded, setOldestLoaded] = useState<number | null>(null);
 
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', confirmLabel: 'Confirm', isDestructive: false, onConfirm: () => { } });
   const [permissionModal, setPermissionModal] = useState({ isOpen: false, type: 'video' as 'audio' | 'video', onGranted: () => { } });
 
   const [partnerIsTyping, setPartnerIsTyping] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGamesDrawer, setShowGamesDrawer] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<'none' | '2tl' | 'wyr'>('none');
+  const [twoTruths1, setTwoTruths1] = useState('');
+  const [twoTruths2, setTwoTruths2] = useState('');
+  const [oneLie, setOneLie] = useState('');
+  const [customWyrQuestion, setCustomWyrQuestion] = useState('');
+  const [customWyrA, setCustomWyrA] = useState('');
+  const [customWyrB, setCustomWyrB] = useState('');
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
 
@@ -132,12 +191,14 @@ export const Chat: React.FC = () => {
     if (!currentUser || !matchId || !supabase) return;
 
     let initialPartner: MatchProfile | null = null;
+    let cacheTime = 0;
     // 1. Check Chat Cache in sessionStorage (Only for Partner Data now, Dexie handles messages)
     try {
       const c = sessionStorage.getItem(cacheKey);
       if (c) {
         const parsed = JSON.parse(c);
         initialPartner = parsed.partner || null;
+        cacheTime = parsed.timestamp || 0;
       }
     } catch (e) {
       console.error(e);
@@ -193,58 +254,80 @@ export const Chat: React.FC = () => {
           }
         } else {
           // We have a partner (from State/Cache). 
-          // Refresh profile in BACKGROUND (Fire & Forget) to keep clear of stale data
-          supabase.from('profiles').select('id, real_name, anonymous_id, avatar, is_verified').eq('id', partnerId).single().then(({ data: profile }) => {
-            if (profile) {
-              setPartner(prev => {
-                if (!prev) return prev;
-                const updated = {
-                  ...prev,
-                  realName: profile.real_name,
-                  anonymousId: profile.anonymous_id,
-                  avatar: profile.avatar,
-                  isVerified: profile.is_verified
-                };
-                // Only update if changed (simple check)
-                if (JSON.stringify(prev) !== JSON.stringify(updated)) {
-                  return updated;
-                }
-                return prev;
-              });
-            }
-          });
+          // Refresh profile in BACKGROUND (Fire & Forget) to keep clear of stale data if cache is > 5 mins old
+          const shouldRefreshProfile = !cacheTime || (Date.now() - cacheTime > 5 * 60 * 1000);
+          
+          if (shouldRefreshProfile) {
+            supabase.from('profiles').select('id, real_name, anonymous_id, avatar, is_verified').eq('id', partnerId).single().then(({ data: profile }) => {
+              if (profile) {
+                setPartner(prev => {
+                  if (!prev) return prev;
+                  const updated = {
+                    ...prev,
+                    realName: profile.real_name,
+                    anonymousId: profile.anonymous_id,
+                    avatar: profile.avatar,
+                    isVerified: profile.is_verified
+                  };
+                  // Only update if changed (simple check)
+                  if (JSON.stringify(prev) !== JSON.stringify(updated)) {
+                    try { sessionStorage.setItem(cacheKey, JSON.stringify({ partner: updated, timestamp: Date.now() })); } catch (e) { }
+                    return updated;
+                  }
+                  return prev;
+                });
+              }
+            });
+          }
         }
 
         // Parallel Fetch: Messages + Block Status
         if (partnerId) {
+          // 1. Retrieve the latest local message timestamp to perform delta sync
+          const localMessages = await db.messages.where('[match_id+created_at]').between([matchId, Dexie.minKey], [matchId, Dexie.maxKey]).toArray();
+          const latestLocalMsg = localMessages.length > 0 ? localMessages[localMessages.length - 1] : null;
+          
+          let messagesQuery;
+          if (latestLocalMsg) {
+            messagesQuery = supabase.from('messages')
+              .select('id, sender_id, text, created_at, is_read')
+              .eq('match_id', matchId)
+              .gt('created_at', new Date(latestLocalMsg.created_at).toISOString())
+              .order('created_at', { ascending: false });
+          } else {
+            messagesQuery = supabase.from('messages')
+              .select('id, sender_id, text, created_at, is_read')
+              .eq('match_id', matchId)
+              .order('created_at', { ascending: false })
+              .limit(MESSAGES_PER_PAGE);
+          }
+
           const [blockStatus, messagesRes] = await Promise.all([
             checkBlockStatus(partnerId, currentUser.id),
-            supabase.from('messages').select('id, sender_id, text, created_at, is_read').eq('match_id', matchId).order('created_at', { ascending: false }).limit(MESSAGES_PER_PAGE)
+            messagesQuery
           ]);
 
           setIsBlocked(blockStatus.isBlocked); setIsBlockedByThem(blockStatus.isBlockedBy);
 
           if (messagesRes.data && messagesRes.data.length > 0) {
-            const localMsgs: LocalMessage[] = messagesRes.data.map((m: any) => {
-              const rawText = m.text || m.content;
-              const textStr = rawText ? (typeof rawText === 'object' ? (rawText.text || rawText.content || '') : rawText) : '';
-              return {
-                id: m.id,
-                match_id: matchId,
-                sender_id: m.sender_id,
-                text: textStr.replace('[SYSTEM]', '').trim(),
-                created_at: new Date(m.created_at).getTime(),
-                is_system: textStr.startsWith('[SYSTEM]') || textStr.startsWith('📞'),
-                is_read: m.is_read,
-                status: 'sent'
-              };
-            });
+            const localMsgs: LocalMessage[] = messagesRes.data.map((m: any) =>
+              mapSupabaseMessageToLocal(m, matchId)
+            );
             
             // Sync to Dexie in background
-            await db.messages.bulkPut(localMsgs);
-            
-            setOldestLoaded(new Date(messagesRes.data[messagesRes.data.length - 1].created_at).getTime());
-            setHasMoreMessages(messagesRes.data.length === MESSAGES_PER_PAGE);
+            try {
+              await db.messages.bulkPut(localMsgs);
+            } catch (dbErr) {
+              console.error('Failed to sync initial messages to local DB:', dbErr);
+            }
+          }
+
+          // 2. Compute final scroll positioning and paging index using combined database state
+          const updatedLocalMessages = await db.messages.where('[match_id+created_at]').between([matchId, Dexie.minKey], [matchId, Dexie.maxKey]).toArray();
+          if (updatedLocalMessages.length > 0) {
+            setOldestLoaded(updatedLocalMessages[0].created_at);
+            // If delta query returned full page limit, we might have more remote messages, otherwise we are up to date
+            setHasMoreMessages(latestLocalMsg ? true : updatedLocalMessages.length >= MESSAGES_PER_PAGE);
             setTimeout(() => messagesEndRef.current?.scrollIntoView(), 100);
           } else {
             setHasMoreMessages(false);
@@ -253,7 +336,7 @@ export const Chat: React.FC = () => {
           // Update cache with latest partner (possibly updated)
           const currentPartner = partnerRef.current || initialPartner;
           if (currentPartner) {
-            try { sessionStorage.setItem(cacheKey, JSON.stringify({ partner: currentPartner })); } catch (e) { }
+            try { sessionStorage.setItem(cacheKey, JSON.stringify({ partner: currentPartner, timestamp: Date.now() })); } catch (e) { }
           }
         }
 
@@ -286,7 +369,7 @@ export const Chat: React.FC = () => {
   }, [matchId, currentUser?.id]);
 
   const loadMoreMessages = async () => {
-    if (!hasMoreMessages || isLoadingMore || !matchId) return;
+    if (!hasMoreMessages || isLoadingMore || !matchId || oldestLoaded === null) return;
     setIsLoadingMore(true);
     try {
       const { data: msgData } = await supabase.from('messages')
@@ -297,21 +380,14 @@ export const Chat: React.FC = () => {
         .limit(MESSAGES_PER_PAGE);
 
       if (msgData && msgData.length > 0) {
-        const localMsgs: LocalMessage[] = msgData.map((m: any) => {
-          const rawText = m.text || m.content;
-          const textStr = rawText ? (typeof rawText === 'object' ? (rawText.text || rawText.content || '') : rawText) : '';
-          return {
-            id: m.id,
-            match_id: matchId,
-            sender_id: m.sender_id,
-            text: textStr.replace('[SYSTEM]', '').trim(),
-            created_at: new Date(m.created_at).getTime(),
-            is_system: textStr.startsWith('[SYSTEM]') || textStr.startsWith('📞'),
-            is_read: m.is_read,
-            status: 'sent'
-          };
-        });
-        await db.messages.bulkPut(localMsgs);
+        const localMsgs: LocalMessage[] = msgData.map((m: any) =>
+          mapSupabaseMessageToLocal(m, matchId)
+        );
+        try {
+          await db.messages.bulkPut(localMsgs);
+        } catch (dbErr) {
+          console.error('Failed to sync paginated messages to local DB:', dbErr);
+        }
         setOldestLoaded(new Date(msgData[msgData.length - 1].created_at).getTime());
         setHasMoreMessages(msgData.length === MESSAGES_PER_PAGE);
       } else setHasMoreMessages(false);
@@ -319,8 +395,12 @@ export const Chat: React.FC = () => {
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (e.currentTarget.scrollTop === 0 && hasMoreMessages && !isLoadingMore) {
-      const container = e.currentTarget; const oldScrollHeight = container.scrollHeight;
+    const container = e.currentTarget;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300;
+    setShowScrollBottom(!isNearBottom);
+
+    if (container.scrollTop === 0 && hasMoreMessages && !isLoadingMore) {
+      const oldScrollHeight = container.scrollHeight;
       loadMoreMessages().then(() => { requestAnimationFrame(() => { container.scrollTop = container.scrollHeight - oldScrollHeight; }); });
     }
   };
@@ -333,31 +413,26 @@ export const Chat: React.FC = () => {
       .on('postgres_changes', {
         event: '*', // Listen to INSERT and UPDATE
         schema: 'public',
-        table: 'messages'
+        table: 'messages',
+        filter: `match_id=eq.${matchId}`
       }, (payload) => {
-        if (!payload.new || !payload.new.match_id || payload.new.match_id.toLowerCase() !== matchId.toLowerCase()) return;
+        if (!payload.new) return;
 
         if (payload.eventType === 'UPDATE') {
           const updatedMsg = payload.new;
-          db.messages.update(updatedMsg.id, { is_read: updatedMsg.is_read });
+          db.messages.update(updatedMsg.id, { 
+            is_read: updatedMsg.is_read,
+            text: updatedMsg.text ? updatedMsg.text.replace('[SYSTEM]', '').trim() : undefined,
+            reaction: updatedMsg.reaction || undefined
+          }).catch(dbErr => {
+            console.error('Failed to update message in local DB on UPDATE:', dbErr);
+          });
           return;
         }
 
         if (payload.eventType === 'INSERT') {
           const newMsg = payload.new;
-          const rawText = newMsg.text || newMsg.content;
-          const textStr = rawText ? (typeof rawText === 'object' ? (rawText.text || rawText.content || '') : rawText) : '';
-          
-          const localMsg: LocalMessage = {
-            id: newMsg.id,
-            match_id: matchId,
-            sender_id: newMsg.sender_id,
-            text: textStr.replace('[SYSTEM]', '').trim(),
-            created_at: new Date(newMsg.created_at).getTime(),
-            is_system: textStr.startsWith('[SYSTEM]') || textStr.startsWith('📞'),
-            is_read: newMsg.is_read,
-            status: 'sent'
-          };
+          const localMsg = mapSupabaseMessageToLocal(newMsg, matchId);
 
           // Block enforcement: ignore messages from blocked users
           if (newMsg.sender_id !== currentUser?.id) {
@@ -371,6 +446,8 @@ export const Chat: React.FC = () => {
              if (container && container.scrollHeight - container.scrollTop - container.clientHeight < 100) {
                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
              }
+          }).catch(dbErr => {
+            console.error('Failed to insert new message into local DB:', dbErr);
           });
         }
       })
@@ -441,7 +518,13 @@ export const Chat: React.FC = () => {
       status: 'sending'
     };
     
-    await db.messages.put(optimisticLocal);
+    let localSaved = false;
+    try {
+      await db.messages.put(optimisticLocal);
+      localSaved = true;
+    } catch (dbErr) {
+      console.error('Failed to write optimistic message to local DB:', dbErr);
+    }
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
 
     // 2. Run asynchronous background push
@@ -455,25 +538,215 @@ export const Chat: React.FC = () => {
       if (error) throw error;
       if (data) {
         // 3. Delete the temp message and insert the real one from Supabase into Dexie
-        await db.transaction('rw', db.messages, async () => {
-          await db.messages.delete(optimisticId);
-          const existing = await db.messages.get(data.id);
-          await db.messages.put({
-            id: data.id,
-            match_id: matchId,
-            sender_id: data.sender_id,
-            text: data.text.replace('[SYSTEM]', '').trim(),
-            created_at: new Date(data.created_at).getTime(),
-            is_system: data.text.startsWith('[SYSTEM]') || data.text.startsWith('📞'),
-            is_read: existing ? existing.is_read : data.is_read,
-            status: 'sent'
-          });
-        });
+        if (localSaved) {
+          try {
+            await db.transaction('rw', db.messages, async () => {
+              await db.messages.delete(optimisticId);
+              const existing = await db.messages.get(data.id);
+              await db.messages.put({
+                ...mapSupabaseMessageToLocal(data, matchId),
+                is_read: existing ? existing.is_read : data.is_read
+              });
+            });
+          } catch (dbErr) {
+            console.error('Failed to sync message to local DB:', dbErr);
+          }
+        } else {
+          try {
+            await db.messages.put(mapSupabaseMessageToLocal(data, matchId));
+          } catch (dbErr) {
+            console.error('Failed to write final message to local DB:', dbErr);
+          }
+        }
       }
       analytics.messageSent();
-    } catch { 
-      await db.messages.update(optimisticId, { status: 'failed' }); 
+    } catch (sendErr) { 
+      console.error('Failed to send message:', sendErr);
+      if (localSaved) {
+        try {
+          await db.messages.update(optimisticId, { status: 'failed' });
+        } catch (dbErr) {
+          console.error('Failed to mark message as failed in local DB:', dbErr);
+        }
+      } 
       showToast('Failed to send', 'error'); 
+    }
+  };
+
+  const sendGameMessage = async (textToSend: string) => {
+    if (!currentUser || !matchId || isBlocked || isBlockedByThem) return;
+    
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticLocal: LocalMessage = {
+      id: optimisticId,
+      match_id: matchId,
+      sender_id: currentUser.id,
+      text: textToSend,
+      created_at: Date.now(),
+      is_system: false,
+      is_read: false,
+      status: 'sending'
+    };
+    
+    let localSaved = false;
+    try {
+      await db.messages.put(optimisticLocal);
+      localSaved = true;
+    } catch (dbErr) {
+      console.error('Failed to write optimistic game message to local DB:', dbErr);
+    }
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({ match_id: matchId, sender_id: currentUser.id, text: textToSend })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      if (data) {
+        if (localSaved) {
+          try {
+            await db.transaction('rw', db.messages, async () => {
+              await db.messages.delete(optimisticId);
+              const existing = await db.messages.get(data.id);
+              await db.messages.put({
+                ...mapSupabaseMessageToLocal(data, matchId),
+                is_read: existing ? existing.is_read : data.is_read
+              });
+            });
+          } catch (dbErr) {
+            console.error('Failed to sync game message to local DB:', dbErr);
+          }
+        } else {
+          try {
+            await db.messages.put(mapSupabaseMessageToLocal(data, matchId));
+          } catch (dbErr) {
+            console.error('Failed to write final game message to local DB:', dbErr);
+          }
+        }
+      }
+    } catch (sendErr) { 
+      console.error('Failed to send game message:', sendErr);
+      if (localSaved) {
+        try {
+          await db.messages.update(optimisticId, { status: 'failed' });
+        } catch (dbErr) {
+          console.error('Failed to mark game message as failed in local DB:', dbErr);
+        }
+      } 
+      showToast('Failed to send game', 'error'); 
+    }
+  };
+
+  const sendGame2TL = async () => {
+    if (!twoTruths1.trim() || !twoTruths2.trim() || !oneLie.trim()) return;
+    
+    const options = shuffleArray([twoTruths1.trim(), twoTruths2.trim(), oneLie.trim()]);
+    const lieHash = hashString(oneLie.trim());
+    
+    const payload: TwoTruthsLieState = {
+      creatorId: currentUser!.id,
+      options,
+      lieHash,
+      status: 'active'
+    };
+    
+    const text = `[GAME:2TL:v1] ${JSON.stringify(payload)}`;
+    await sendGameMessage(text);
+    
+    setTwoTruths1('');
+    setTwoTruths2('');
+    setOneLie('');
+    setSelectedGame('none');
+    setShowGamesDrawer(false);
+  };
+
+  const sendGameWYR = async (templateQuestion?: string, templateA?: string, templateB?: string) => {
+    let question = '';
+    let optionA = '';
+    let optionB = '';
+    
+    if (templateQuestion && templateA && templateB) {
+      question = templateQuestion;
+      optionA = templateA;
+      optionB = templateB;
+    } else {
+      if (!customWyrQuestion.trim() || !customWyrA.trim() || !customWyrB.trim()) return;
+      question = customWyrQuestion.trim();
+      optionA = customWyrA.trim();
+      optionB = customWyrB.trim();
+    }
+    
+    const payload: WouldYouRatherState = {
+      question,
+      optionA,
+      optionB,
+      votes: {}
+    };
+    
+    const text = `[GAME:WYR:v1] ${JSON.stringify(payload)}`;
+    await sendGameMessage(text);
+    
+    setCustomWyrQuestion('');
+    setCustomWyrA('');
+    setCustomWyrB('');
+    setSelectedGame('none');
+    setShowGamesDrawer(false);
+  };
+
+  const handleGuess2TL = async (msgId: string, currentState: TwoTruthsLieState, guessedOpt: string) => {
+    const isCorrect = hashString(guessedOpt) === currentState.lieHash;
+    const updatedState: TwoTruthsLieState = {
+      ...currentState,
+      guess: guessedOpt,
+      guessedCorrectly: isCorrect,
+      status: 'completed'
+    };
+    
+    const serialized = `[GAME:2TL:v1] ${JSON.stringify(updatedState)}`;
+    
+    try {
+      await db.messages.update(msgId, { text: serialized });
+      
+      const { error } = await supabase
+        .from('messages')
+        .update({ text: serialized })
+        .eq('id', msgId);
+        
+      if (error) throw error;
+    } catch (err) {
+      console.error("Failed to submit 2TL guess:", err);
+      showToast("Failed to guess", "error");
+    }
+  };
+
+  const handleVoteWYR = async (msgId: string, currentState: WouldYouRatherState, option: 'A' | 'B') => {
+    if (!currentUser) return;
+    const updatedVotes = {
+      ...currentState.votes,
+      [currentUser.id]: option
+    };
+    const updatedState: WouldYouRatherState = {
+      ...currentState,
+      votes: updatedVotes
+    };
+    
+    const serialized = `[GAME:WYR:v1] ${JSON.stringify(updatedState)}`;
+    
+    try {
+      await db.messages.update(msgId, { text: serialized });
+      
+      const { error } = await supabase
+        .from('messages')
+        .update({ text: serialized })
+        .eq('id', msgId);
+        
+      if (error) throw error;
+    } catch (err) {
+      console.error("Failed to submit WYR vote:", err);
+      showToast("Failed to vote", "error");
     }
   };
 
@@ -501,7 +774,12 @@ export const Chat: React.FC = () => {
   if (!partner) return null;
 
   return (
-    <div className="h-full w-full bg-transparent flex flex-col relative">
+    <div className={`h-full w-full flex flex-col relative transition-all duration-500 ${
+      wallpaper === 'midnight' ? 'bg-gradient-to-b from-[#0a050f] via-[#05020a] to-[#000000]' :
+      wallpaper === 'cyberpunk' ? 'bg-[#030008] bg-[linear-gradient(rgba(255,0,127,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,127,0.02)_1px,transparent_1px)] bg-[size:32px_32px]' :
+      wallpaper === 'nebula' ? 'bg-gradient-to-tr from-[#0b001a] via-[#02000a] to-[#120024]' :
+      'bg-[#0f1115]'
+    }`}>
       <ConfirmationModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message} confirmLabel={confirmModal.confirmLabel} isDestructive={confirmModal.isDestructive} onConfirm={confirmModal.onConfirm} onCancel={closeConfirmModal} />
       <PermissionModal isOpen={permissionModal.isOpen} onPermissionsGranted={permissionModal.onGranted} onCancel={() => setPermissionModal(prev => ({ ...prev, isOpen: false }))} requiredPermissions={permissionModal.type === 'video' ? ['camera', 'microphone'] : ['microphone']} />
       <div className="flex-none px-4 py-3 bg-black/95 backdrop-blur-md border-b border-gray-800 flex items-center justify-between z-20">
@@ -520,6 +798,28 @@ export const Chat: React.FC = () => {
                   <button onClick={() => { navigate.push(`/profile/${partner.id}`); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-gray-300 hover:bg-gray-800"><User className="w-4 h-4" /> View Profile</button>
                   <button onClick={() => { setShowMenu(false); handleBlockUser(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-gray-300 hover:bg-gray-800"><Ban className="w-4 h-4" /> {isBlocked ? 'Unblock' : 'Block'}</button>
                   <button onClick={() => { navigate.push(`/contact?reportUserId=${partner.id}&reportUserName=${partner.realName || partner.anonymousId}`); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-red-400 hover:bg-gray-800"><AlertTriangle className="w-4 h-4" /> Report</button>
+                  <div className="border-t border-gray-800 px-4 py-2.5">
+                    <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Chat Theme</span>
+                    <div className="flex gap-2 mt-2">
+                      {(['midnight', 'cyberpunk', 'nebula', 'slate'] as const).map(w => (
+                        <button
+                          key={w}
+                          onClick={() => changeWallpaper(w)}
+                          title={w.charAt(0).toUpperCase() + w.slice(1)}
+                          className={`w-6 h-6 rounded-full border transition-all ${
+                            wallpaper === w ? 'border-neon scale-110 shadow-[0_0_8px_rgba(255,0,127,0.5)]' : 'border-gray-700 hover:border-gray-500'
+                          }`}
+                          style={{
+                            background: 
+                              w === 'midnight' ? 'linear-gradient(135deg, #0a050f, #000)' :
+                              w === 'cyberpunk' ? '#030008' :
+                              w === 'nebula' ? 'linear-gradient(135deg, #0b001a, #120024)' :
+                              '#0f1115'
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -533,12 +833,261 @@ export const Chat: React.FC = () => {
         {messages.map((msg, i) => {
           const isMe = msg.senderId === currentUser?.id;
           if (msg.isSystem) return <div key={msg.id} className="flex justify-center w-full my-4"><span className="text-[10px] uppercase text-gray-500 bg-gray-900/50 px-4 py-1.5 rounded-full border border-gray-800/50 flex items-center gap-2">{msg.text.replace('📞', '').trim()}</span></div>;
+          
+          if (msg.text.startsWith('[GAME:2TL:v1]')) {
+            try {
+              const gameState: TwoTruthsLieState = JSON.parse(msg.text.replace('[GAME:2TL:v1] ', ''));
+              const isMeCreator = gameState.creatorId === currentUser?.id;
+              
+              return (
+                <div key={msg.id} className="flex justify-center w-full my-4">
+                  <div className="w-full max-w-sm bg-gradient-to-br from-[#1c0d2b]/60 to-[#08020f]/95 border border-purple-500/35 rounded-2xl p-4 backdrop-blur-md shadow-2xl relative overflow-hidden transition-transform hover:scale-[1.01] duration-300">
+                    <div className="absolute -right-8 -top-8 w-20 h-20 bg-purple-500/10 rounded-full blur-xl pointer-events-none" />
+                    
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-3 flex items-center gap-1.5 font-mono">
+                      🎲 2 Truths & a Lie
+                    </h4>
+                    
+                    {gameState.status === 'active' && !isMeCreator && !gameState.guess && (
+                      <div className="space-y-2.5">
+                        <p className="text-xs text-gray-300 mb-1">Guess which one is the <span className="text-red-400 font-semibold">LIE</span>:</p>
+                        {gameState.options.map((opt, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleGuess2TL(msg.id, gameState, opt)}
+                            className="w-full text-left px-3.5 py-2.5 text-xs bg-purple-900/20 hover:bg-purple-800/30 border border-purple-500/20 hover:border-purple-400/40 rounded-xl text-gray-200 transition-all active:scale-[0.98] duration-200"
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {gameState.status === 'active' && isMeCreator && !gameState.guess && (
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-gray-400 mb-2">
+                          You set up these options. Waiting for partner to guess {isUserOnline(partner.id) ? (
+                            <span className="text-green-400 font-semibold">(Online 🟢)</span>
+                          ) : (
+                            <span className="text-gray-500 font-medium">(Offline ⚪ - they'll play when they return)</span>
+                          )}:
+                        </p>
+                        {gameState.options.map((opt, idx) => {
+                          const isLie = hashString(opt) === gameState.lieHash;
+                          return (
+                            <div
+                              key={idx}
+                              className={`px-3 py-2 text-xs border rounded-xl flex items-center justify-between ${
+                                isLie ? 'bg-red-500/10 border-red-500/20 text-red-300' : 'bg-gray-950/40 border-gray-900 text-gray-400'
+                              }`}
+                            >
+                              <span>{opt}</span>
+                              {isLie && <span className="text-[9px] font-bold text-red-500 uppercase tracking-wide">Lie</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {gameState.guess && (
+                      <div className="space-y-3">
+                        <div className="text-[11px] text-gray-400 mb-1">
+                          {isMeCreator ? (
+                            <span>Partner guessed:</span>
+                          ) : (
+                            <span>You guessed:</span>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {gameState.options.map((opt, idx) => {
+                            const isLie = hashString(opt) === gameState.lieHash;
+                            const wasGuessed = opt === gameState.guess;
+                            let bgBorderClass = 'bg-gray-950/40 border-gray-900 text-gray-500';
+                            
+                            if (isLie) {
+                              bgBorderClass = 'bg-green-500/15 border-green-500/35 text-green-300';
+                            } else if (wasGuessed && !isLie) {
+                              bgBorderClass = 'bg-red-500/15 border-red-500/35 text-red-300';
+                            }
+                            
+                            return (
+                              <div
+                                key={idx}
+                                className={`px-3 py-2.5 text-xs border rounded-xl flex items-center justify-between ${bgBorderClass}`}
+                              >
+                                <span className={!isLie && !wasGuessed ? 'opacity-50' : ''}>{opt}</span>
+                                <div className="flex gap-1.5 items-center">
+                                  {isLie && <span className="text-[9px] font-bold text-green-400 uppercase tracking-wider">Lie</span>}
+                                  {wasGuessed && (
+                                    <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30 font-medium font-mono uppercase">
+                                      Guess
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        <div className={`text-xs font-bold text-center mt-3 pt-2 border-t border-purple-500/10 ${gameState.guessedCorrectly ? 'text-green-400' : 'text-red-400'}`}>
+                          {gameState.guessedCorrectly ? (
+                            <span>🎉 Correct! The lie was spotted!</span>
+                          ) : (
+                            <span>❌ Wrong! The lie was successfully hidden.</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            } catch (e) {
+              console.error("Error rendering 2TL message card:", e);
+            }
+          }
+          
+          if (msg.text.startsWith('[GAME:WYR:v1]')) {
+            try {
+              const gameState: WouldYouRatherState = JSON.parse(msg.text.replace('[GAME:WYR:v1] ', ''));
+              const myVote = gameState.votes[currentUser?.id || ''];
+              const partnerId = partner?.id;
+              const partnerVote = gameState.votes[partnerId || ''];
+              
+              const totalVotes = Object.keys(gameState.votes).length;
+              const bothVoted = totalVotes >= 2;
+              
+              let countA = 0;
+              let countB = 0;
+              Object.values(gameState.votes).forEach(v => {
+                if (v === 'A') countA++;
+                if (v === 'B') countB++;
+              });
+              
+              const pctA = totalVotes > 0 ? Math.round((countA / totalVotes) * 100) : 0;
+              const pctB = totalVotes > 0 ? Math.round((countB / totalVotes) * 100) : 0;
+              
+              return (
+                <div key={msg.id} className="flex justify-center w-full my-4">
+                  <div className="w-full max-w-sm bg-gradient-to-br from-[#0c1a24]/60 to-[#02070d]/95 border border-cyan-500/35 rounded-2xl p-4 backdrop-blur-md shadow-2xl relative overflow-hidden transition-transform hover:scale-[1.01] duration-300">
+                    <div className="absolute -right-8 -top-8 w-20 h-20 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
+                    
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5 font-mono">
+                      ⚔️ Would You Rather
+                    </h4>
+                    
+                    <p className="text-xs text-gray-200 font-medium mb-3.5 line-clamp-3 leading-relaxed">{gameState.question}</p>
+                    
+                    {!bothVoted && !myVote && (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => handleVoteWYR(msg.id, gameState, 'A')}
+                          className="w-full text-center px-4 py-3 text-xs bg-cyan-900/20 hover:bg-cyan-800/30 border border-cyan-500/20 hover:border-cyan-400/40 rounded-xl text-gray-200 transition-all active:scale-[0.98] duration-200"
+                        >
+                          {gameState.optionA}
+                        </button>
+                        <div className="text-center text-[9px] text-gray-600 font-mono tracking-widest uppercase my-1">— OR —</div>
+                        <button
+                          onClick={() => handleVoteWYR(msg.id, gameState, 'B')}
+                          className="w-full text-center px-4 py-3 text-xs bg-cyan-900/20 hover:bg-cyan-800/30 border border-cyan-500/20 hover:border-cyan-400/40 rounded-xl text-gray-200 transition-all active:scale-[0.98] duration-200"
+                        >
+                          {gameState.optionB}
+                        </button>
+                      </div>
+                    )}
+                    
+                    {!bothVoted && myVote && (
+                      <div className="space-y-3">
+                        <p className="text-[11px] text-gray-400">
+                          You voted. Waiting for partner to vote {isUserOnline(partner.id) ? (
+                            <span className="text-cyan-400 font-semibold">(Online 🟢)</span>
+                          ) : (
+                            <span className="text-gray-500 font-medium">(Offline ⚪ - they'll vote when they return)</span>
+                          )}...
+                        </p>
+                        <div className="px-4 py-3 text-xs bg-cyan-950/40 border border-cyan-900/30 rounded-xl text-gray-300 font-medium text-center font-mono">
+                          Selected: {myVote === 'A' ? gameState.optionA : gameState.optionB}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {bothVoted && (
+                      <div className="space-y-3.5">
+                        {/* Option A Results */}
+                        <div className="space-y-1.5 relative">
+                          <div className="flex justify-between text-xs font-semibold px-1 text-gray-200">
+                            <span className="truncate max-w-[80%]">{gameState.optionA}</span>
+                            <span>{pctA}%</span>
+                          </div>
+                          <div className="h-7 w-full bg-gray-950/80 rounded-lg overflow-hidden border border-gray-900 relative flex items-center">
+                            <div 
+                              className="h-full bg-cyan-500/20 border-r border-cyan-500/40 transition-all duration-700" 
+                              style={{ width: `${pctA}%` }} 
+                            />
+                            <div className="absolute right-2 flex gap-1 items-center">
+                              {myVote === 'A' && (
+                                <span className="text-[8px] bg-cyan-400/20 text-cyan-300 border border-cyan-400/30 rounded px-1 font-mono uppercase font-bold">
+                                  You
+                                </span>
+                              )}
+                              {partnerVote === 'A' && (
+                                <span className="text-[8px] bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded px-1 font-mono uppercase font-bold">
+                                  Partner
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Option B Results */}
+                        <div className="space-y-1.5 relative">
+                          <div className="flex justify-between text-xs font-semibold px-1 text-gray-200">
+                            <span className="truncate max-w-[80%]">{gameState.optionB}</span>
+                            <span>{pctB}%</span>
+                          </div>
+                          <div className="h-7 w-full bg-gray-950/80 rounded-lg overflow-hidden border border-gray-900 relative flex items-center">
+                            <div 
+                              className="h-full bg-pink-500/20 border-r border-pink-500/40 transition-all duration-700" 
+                              style={{ width: `${pctB}%` }} 
+                            />
+                            <div className="absolute right-2 flex gap-1 items-center">
+                              {myVote === 'B' && (
+                                <span className="text-[8px] bg-pink-400/20 text-pink-300 border border-pink-400/30 rounded px-1 font-mono uppercase font-bold">
+                                  You
+                                </span>
+                              )}
+                              {partnerVote === 'B' && (
+                                <span className="text-[8px] bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded px-1 font-mono uppercase font-bold">
+                                  Partner
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            } catch (e) {
+              console.error("Error rendering WYR message card:", e);
+            }
+          }
+
           return (
             <div key={msg.id} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
               <div className={`flex max-w-[80%] md:max-w-[60%] gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                 {!isMe && <div className="w-8 h-8 flex-shrink-0">{(!messages[i - 1] || messages[i - 1].senderId !== msg.senderId) && <img src={getOptimizedUrl(partner.avatar, 64)} className="w-8 h-8 rounded-full border border-gray-800 object-cover" />}</div>}
-                <div className={`relative px-4 py-2.5 rounded-2xl text-sm break-words break-all min-w-0 ${isMe ? 'bg-neon text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none border border-gray-700'}`}>
+                <div 
+                  onDoubleClick={() => handleMessageDoubleClick(msg.id, msg.reaction)}
+                  className={`relative px-4 py-2.5 rounded-2xl text-sm break-words break-all min-w-0 select-none cursor-pointer transition-transform active:scale-[0.98] ${isMe ? 'bg-neon text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none border border-gray-700'}`}
+                >
                   {msg.text}
+                  {msg.reaction && (
+                    <div className="absolute -bottom-2.5 right-3 bg-gray-950 border border-gray-700/80 rounded-full px-1.5 py-0.5 text-[9px] flex items-center justify-center shadow-lg shadow-black/80 animate-[scaleIn_0.2s_ease-out]">
+                      {msg.reaction}
+                    </div>
+                  )}
                   <div className="flex items-center justify-end gap-1 mt-1">
                     <span className={`text-[9px] opacity-60 ${isMe ? 'text-white' : 'text-gray-400'}`}>
                       {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -575,6 +1124,15 @@ export const Chat: React.FC = () => {
         )}
         <div ref={messagesEndRef} />
       </div>
+      {showScrollBottom && (
+        <button
+          onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+          className="absolute bottom-24 right-6 z-30 p-2.5 rounded-full bg-gray-900/90 hover:bg-gray-800 border border-gray-700 text-neon shadow-lg shadow-black/60 transition-all active:scale-90 flex items-center justify-center hover:scale-105"
+          aria-label="Scroll to bottom"
+        >
+          <ArrowDown className="w-4 h-4 animate-[bounce_1.5s_infinite]" />
+        </button>
+      )}
       <div className="p-3 bg-black/95 backdrop-blur-md border-t border-gray-800 z-20 relative">
         {(isBlocked || isBlockedByThem) && (
           <div className="absolute inset-0 bg-gray-900/95 flex items-center justify-center z-30">
@@ -589,12 +1147,15 @@ export const Chat: React.FC = () => {
           <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl flex items-center gap-2 px-3 py-1 shadow-inner focus-within:border-gray-600 transition-colors relative">
             <button
               type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              aria-label="Toggle emoji picker"
-              aria-expanded={showEmojiPicker}
-              className={`p-2 text-gray-500 hover:text-white transition-colors rounded-full ${showEmojiPicker ? 'bg-gray-800 text-white' : ''}`}
+              onClick={() => {
+                setShowGamesDrawer(!showGamesDrawer);
+                setSelectedGame('none');
+              }}
+              aria-label="Launch Icebreakers & Games"
+              aria-expanded={showGamesDrawer}
+              className={`p-2 text-gray-500 hover:text-neon transition-colors rounded-full ${showGamesDrawer ? 'bg-gray-800 text-neon' : ''}`}
             >
-              <Smile className="w-5 h-5" />
+              <Gamepad2 className="w-5 h-5" />
             </button>
             <input
               value={newMessage}
@@ -603,23 +1164,145 @@ export const Chat: React.FC = () => {
               aria-label="Message input"
               className="flex-1 bg-transparent py-3 text-sm text-white placeholder-gray-500 outline-none min-h-[44px] max-h-32"
             />
-            {showEmojiPicker && (
+            {showGamesDrawer && (
               <>
-                <div className="fixed inset-0 z-30" onClick={() => setShowEmojiPicker(false)} />
-                <div className="absolute bottom-14 left-2 z-40 bg-gray-900/95 border border-gray-700/80 rounded-2xl p-2 backdrop-blur-xl flex items-center gap-1.5 shadow-2xl transition-all duration-200">
-                  {['❤️', '🔥', '😂', '✨', '👀', '🥺', '🙌', '💯'].map(emoji => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => {
-                        setNewMessage(prev => prev + emoji);
-                        setShowEmojiPicker(false);
-                      }}
-                      className="text-lg hover:scale-125 transition-transform p-1.5 rounded-lg hover:bg-gray-800/80 active:scale-95"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+                <div className="fixed inset-0 z-35" onClick={() => setShowGamesDrawer(false)} />
+                <div className="absolute bottom-16 left-0 right-0 mx-auto max-w-sm z-40 bg-gray-950/95 border border-purple-500/20 rounded-2xl p-4 backdrop-blur-xl shadow-2xl transition-all duration-300 animate-[scaleIn_0.25s_ease-out]">
+                  {selectedGame === 'none' && (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-900">
+                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wide">🎲 Chat Icebreakers</h4>
+                        <button onClick={() => setShowGamesDrawer(false)} className="text-[10px] text-gray-500 hover:text-gray-300 font-mono">Close</button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedGame('2tl')}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-purple-950/20 hover:bg-purple-900/30 border border-purple-500/10 hover:border-purple-500/30 text-left transition-all group"
+                        >
+                          <span className="text-xl">🎲</span>
+                          <div>
+                            <div className="text-xs font-bold text-purple-300 group-hover:text-purple-200">2 Truths & a Lie</div>
+                            <div className="text-[10px] text-gray-400">Post items and see if they can find the lie!</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedGame('wyr')}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-cyan-950/20 hover:bg-cyan-900/30 border border-cyan-500/10 hover:border-cyan-500/30 text-left transition-all group"
+                        >
+                          <span className="text-xl">⚔️</span>
+                          <div>
+                            <div className="text-xs font-bold text-cyan-300 group-hover:text-cyan-200">Would You Rather</div>
+                            <div className="text-[10px] text-gray-400">Vote on college & lifestyle questions together.</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedGame === '2tl' && (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-900">
+                        <button onClick={() => setSelectedGame('none')} className="text-[10px] text-purple-400 hover:underline">← Back</button>
+                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wide">2 Truths & a Lie</h4>
+                        <span className="w-8" />
+                      </div>
+                      <div className="space-y-2.5">
+                        <input
+                          type="text"
+                          value={twoTruths1}
+                          onChange={e => setTwoTruths1(e.target.value)}
+                          placeholder="Truth #1 (e.g. I can play the drums)"
+                          className="w-full bg-gray-905 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-purple-500/40 transition-colors"
+                        />
+                        <input
+                          type="text"
+                          value={twoTruths2}
+                          onChange={e => setTwoTruths2(e.target.value)}
+                          placeholder="Truth #2 (e.g. I have a twin brother)"
+                          className="w-full bg-gray-905 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-purple-500/40 transition-colors"
+                        />
+                        <input
+                          type="text"
+                          value={oneLie}
+                          onChange={e => setOneLie(e.target.value)}
+                          placeholder="The LIE (e.g. I speak fluent Russian)"
+                          className="w-full bg-gray-905 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-red-500/40 transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={sendGame2TL}
+                          disabled={!twoTruths1.trim() || !twoTruths2.trim() || !oneLie.trim()}
+                          className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-900/40 disabled:text-gray-500 font-bold text-white text-xs rounded-xl shadow-lg transition-all active:scale-[0.98] mt-1"
+                        >
+                          Send to Chat
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedGame === 'wyr' && (
+                    <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-900 sticky top-0 bg-gray-950 z-10">
+                        <button onClick={() => setSelectedGame('none')} className="text-[10px] text-cyan-400 hover:underline">← Back</button>
+                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wide">Would You Rather</h4>
+                        <span className="w-8" />
+                      </div>
+                      
+                      <div className="space-y-2.5">
+                        <span className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Choose a template:</span>
+                        <div className="grid grid-cols-1 gap-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
+                          {WYR_TEMPLATES.map((tmpl, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => sendGameWYR(tmpl.question, tmpl.optionA, tmpl.optionB)}
+                              className="text-left px-2.5 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-lg text-[10px] text-gray-300 transition-colors truncate hover:text-cyan-300"
+                            >
+                              💡 {tmpl.optionA} OR {tmpl.optionB}
+                            </button>
+                          ))}
+                        </div>
+                        
+                        <div className="text-center text-[9px] text-gray-600 font-mono tracking-wide">OR WRITE CUSTOM</div>
+                        
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={customWyrQuestion}
+                            onChange={e => setCustomWyrQuestion(e.target.value)}
+                            placeholder="Custom Question (e.g. Would you rather...)"
+                            className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-cyan-500/40 transition-colors"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={customWyrA}
+                              onChange={e => setCustomWyrA(e.target.value)}
+                              placeholder="Option A"
+                              className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-cyan-500/40 transition-colors"
+                            />
+                            <input
+                              type="text"
+                              value={customWyrB}
+                              onChange={e => setCustomWyrB(e.target.value)}
+                              placeholder="Option B"
+                              className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-cyan-500/40 transition-colors"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => sendGameWYR()}
+                            disabled={!customWyrQuestion.trim() || !customWyrA.trim() || !customWyrB.trim()}
+                            className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-900/40 disabled:text-gray-500 font-bold text-white text-xs rounded-xl shadow-lg transition-all active:scale-[0.98] mt-1"
+                          >
+                            Send Custom WYR
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}

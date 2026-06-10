@@ -9,6 +9,7 @@ export interface LocalMessage {
   is_read: boolean;
   is_system: boolean;
   status: 'sent' | 'sending' | 'failed';
+  reaction?: string;
 }
 
 export class ChatDatabase extends Dexie {
@@ -16,9 +17,11 @@ export class ChatDatabase extends Dexie {
 
   constructor() {
     super('OthrhalffChatDB');
-    // Define the schema. We index by id (primary key), match_id (to query by chat room), and created_at (for sorting)
     this.version(1).stores({
       messages: 'id, match_id, created_at, status'
+    });
+    this.version(2).stores({
+      messages: 'id, match_id, created_at, status, [match_id+created_at]'
     });
   }
 }
