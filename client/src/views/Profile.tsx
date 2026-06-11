@@ -23,46 +23,6 @@ export const Profile: React.FC = () => {
     // State
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
-
-    // Carousel & Swipe State
-    const [activeSlide, setActiveSlide] = useState(0);
-    const [touchStart, setTouchStart] = useState<number | null>(null);
-    const [touchEnd, setTouchEnd] = useState<number | null>(null);
-
-    const totalSlides = 5;
-
-    const handleTouchStart = (e: React.TouchEvent) => {
-        setTouchStart(e.targetTouches[0].clientX);
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        setTouchEnd(e.targetTouches[0].clientX);
-    };
-
-    const handleTouchEnd = () => {
-        if (!touchStart || !touchEnd) return;
-        const distance = touchStart - touchEnd;
-        const isLeftSwipe = distance > 50;
-        const isRightSwipe = distance < -50;
-        if (isLeftSwipe) {
-            setActiveSlide(prev => (prev + 1) % totalSlides);
-        } else if (isRightSwipe) {
-            setActiveSlide(prev => (prev - 1 + totalSlides) % totalSlides);
-        }
-        setTouchStart(null);
-        setTouchEnd(null);
-    };
-
-    const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const width = rect.width;
-        if (clickX < width * 0.35) {
-            setActiveSlide(prev => (prev - 1 + totalSlides) % totalSlides);
-        } else {
-            setActiveSlide(prev => (prev + 1) % totalSlides);
-        }
-    };
     const [showVerification, setShowVerification] = useState(false);
     const [verifyStep, setVerifyStep] = useState(1);
     const [verifyData, setVerifyData] = useState({ college: '', email: '', file: null as File | null });
@@ -405,227 +365,106 @@ export const Profile: React.FC = () => {
                 {/* --- Main Content --- */}
                 <div className="space-y-6 md:space-y-8">
 
-                    {/* Main Columns */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start">
+                    {/* 1. HERO SECTION (Identity Card) */}
+                    <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-6 md:p-10 shadow-2xl relative overflow-hidden group">
+                        
+                        {/* Desktop: Glow behind avatar */}
+                        <div className="hidden md:block absolute top-0 left-0 w-full h-full bg-gradient-to-r from-neon/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
 
-                        {/* LEFT COLUMN: Premium Card + Completeness Meter + Actions */}
-                        <div className="md:col-span-5 flex flex-col gap-6">
-
-                            {/* 1. Carousel Card */}
-                            {!isEditing && (
-                                <div
-                                    onTouchStart={handleTouchStart}
-                                    onTouchMove={handleTouchMove}
-                                    onTouchEnd={handleTouchEnd}
-                                    onClick={handleCardClick}
-                                    className="w-full aspect-[3/4] relative bg-zinc-950 rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden cursor-pointer group hover:border-white/20 transition-all duration-300"
-                                >
-                                    {/* Story indicator bars */}
-                                    <div className="absolute top-4 left-4 right-4 z-20 flex gap-1.5">
-                                        {Array.from({ length: totalSlides }).map((_, idx) => (
-                                            <div key={idx} className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full bg-white transition-all duration-300 ${
-                                                        idx <= activeSlide ? 'w-full' : 'w-0'
-                                                    }`} 
-                                                />
-                                            </div>
-                                        ))}
+                        <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6 md:gap-10 relative z-10">
+                            
+                            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 w-full md:w-auto">
+                                {/* Squircle Avatar Container */}
+                                <div className="relative flex-shrink-0">
+                                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] border-4 border-zinc-950 shadow-[0_15px_30px_rgba(0,0,0,0.5)] overflow-hidden bg-zinc-800 relative group/avatar">
+                                        <img
+                                            src={getOptimizedUrl(profileUser.avatar || AVATAR_PRESETS[0], 384)}
+                                            alt="Avatar"
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-105"
+                                        />
                                     </div>
-
-                                    {/* Left/Right click zone guides visible on hover */}
-                                    <div className="absolute inset-y-0 left-0 w-1/4 z-10 bg-gradient-to-r from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex items-center justify-start pl-4">
-                                        <ChevronDown className="w-5 h-5 text-white/50 rotate-90" />
-                                    </div>
-                                    <div className="absolute inset-y-0 right-0 w-1/4 z-10 bg-gradient-to-l from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex items-center justify-end pr-4">
-                                        <ChevronDown className="w-5 h-5 text-white/50 -rotate-90" />
-                                    </div>
-
-                                    {/* Slide 0: Portrait Photo Card */}
-                                    {activeSlide === 0 && (
-                                        <div className="absolute inset-0 select-none">
-                                            <img
-                                                src={getOptimizedUrl(profileUser.avatar || AVATAR_PRESETS[0], 500)}
-                                                alt="Profile Avatar"
-                                                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                                            />
-                                            {/* Bottom Vignette Overlay */}
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
-                                            
-                                            {/* Quick visual badge overlays */}
-                                            <div className="absolute top-12 left-4 flex gap-2 flex-wrap z-20">
-                                                <span className="px-2.5 py-1 bg-black/40 backdrop-blur border border-white/10 rounded-full text-[10px] font-bold tracking-wider uppercase text-white">
-                                                    {profileUser.gender}
-                                                </span>
-                                                {profileUser.isPremium && (
-                                                    <span className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-full text-[10px] font-bold tracking-wider uppercase text-white shadow-[0_0_10px_rgba(245,158,11,0.5)]">
-                                                        PRO
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Profile overlay details at bottom */}
-                                            <div className="absolute bottom-6 left-6 right-6 z-20 text-left">
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
-                                                        {isSelf ? profileUser.realName : profileUser.anonymousId}
-                                                    </h2>
-                                                    {profileUser.isVerified && (
-                                                        <BadgeCheck className="w-6 h-6 text-blue-400 fill-blue-400/20 drop-shadow-[0_0_8px_rgba(96,165,250,0.6)] animate-pulse" />
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-1.5 text-white/80 text-xs font-semibold drop-shadow-sm">
-                                                    <GraduationCap className="w-4 h-4 text-neon" />
-                                                    <span className="truncate">{profileUser.university}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Slide 1: Academic Identity */}
-                                    {activeSlide === 1 && (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-[#0b0c1e] via-[#10143a] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
-                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                                            <div className="space-y-4">
-                                                <div className="inline-flex p-3.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl shadow-inner">
-                                                    <GraduationCap className="w-8 h-8" />
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-black tracking-widest text-indigo-400 block mb-1">STUDENT PROFILE</span>
-                                                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight leading-tight">
-                                                        {profileUser.university}
-                                                    </h3>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-4 pt-4 border-t border-white/5">
-                                                <div>
-                                                    <span className="text-[10px] text-zinc-500 font-bold block mb-0.5">MAJOR / BRANCH</span>
-                                                    <p className="text-base text-zinc-300 font-semibold">{profileUser.branch || 'Undecided'}</p>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <span className="text-[10px] text-zinc-500 font-bold block mb-0.5">ACADEMIC YEAR</span>
-                                                        <p className="text-base text-zinc-300 font-semibold">{profileUser.year}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[10px] text-zinc-500 font-bold block mb-0.5">STATUS</span>
-                                                        {profileUser.isVerified ? (
-                                                            <span className="inline-flex items-center gap-1 text-xs text-blue-400 font-bold mt-1">
-                                                                <BadgeCheck className="w-4 h-4 fill-blue-500/10" /> Verified Student
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 text-xs text-zinc-500 font-bold mt-1">
-                                                                <Shield className="w-4 h-4" /> Unverified
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Slide 2: About Me (Bio) */}
-                                    {activeSlide === 2 && (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-[#1c0b24] via-[#221033] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
-                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                                            <div className="space-y-4">
-                                                <div className="inline-flex p-3.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-2xl shadow-inner">
-                                                    <User className="w-8 h-8" />
-                                                </div>
-                                                <span className="text-[10px] font-black tracking-widest text-purple-400 block">MY STORY</span>
-                                            </div>
-
-                                            <div className="flex-1 flex items-center py-4">
-                                                <p className="text-lg md:text-xl font-light text-zinc-200 italic leading-relaxed tracking-wide">
-                                                    "{profileUser.bio || "Keeping it mysterious..."}"
-                                                </p>
-                                            </div>
-
-                                            <div className="pt-4 border-t border-white/5 flex justify-between items-center text-xs text-zinc-500 font-semibold">
-                                                <span>GENDER: {profileUser.gender}</span>
-                                                {profileUser.dob && (
-                                                    <span>BORN: {new Date(profileUser.dob).getFullYear()}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Slide 3: Passions & Interests */}
-                                    {activeSlide === 3 && (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-[#061e1f] via-[#0b2b2d] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
-                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                                            <div className="space-y-4">
-                                                <div className="inline-flex p-3.5 bg-teal-500/10 border border-teal-500/20 text-teal-400 rounded-2xl shadow-inner">
-                                                    <Heart className="w-8 h-8" />
-                                                </div>
-                                                <span className="text-[10px] font-black tracking-widest text-teal-400 block">PASSIONS</span>
-                                            </div>
-
-                                            <div className="flex-1 flex items-center justify-center py-4">
-                                                {profileUser.interests && profileUser.interests.length > 0 ? (
-                                                    <div className="flex flex-wrap gap-2 justify-center max-h-[180px] overflow-y-auto custom-scrollbar">
-                                                        {profileUser.interests.map(interest => (
-                                                            <span key={interest} className="px-3.5 py-1.5 bg-white/5 border border-white/10 rounded-full text-xs font-bold text-teal-300">
-                                                                #{interest}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-zinc-500 italic text-sm">No interests selected yet.</p>
-                                                )}
-                                            </div>
-
-                                            <div className="pt-4 border-t border-white/5 text-center text-xs text-zinc-500 font-semibold">
-                                                {profileUser.interests?.length || 0} interests selected
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Slide 4: Looking For */}
-                                    {activeSlide === 4 && (
-                                        <div className="absolute inset-0 bg-gradient-to-br from-[#1e0712] via-[#2d0c1b] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
-                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
-                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                                            <div className="space-y-4">
-                                                <div className="inline-flex p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl shadow-inner">
-                                                    <Search className="w-8 h-8" />
-                                                </div>
-                                                <span className="text-[10px] font-black tracking-widest text-rose-400 block">LOOKING FOR</span>
-                                            </div>
-
-                                            <div className="flex-1 flex items-center justify-center py-4">
-                                                {profileUser.lookingFor && profileUser.lookingFor.length > 0 ? (
-                                                    <div className="flex flex-wrap gap-2.5 justify-center">
-                                                        {profileUser.lookingFor.map(option => (
-                                                            <span key={option} className="px-4 py-2 bg-gradient-to-r from-pink-500/10 to-rose-500/10 border border-pink-500/20 rounded-2xl text-xs font-bold text-pink-200 shadow-sm">
-                                                                {option}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-zinc-500 italic text-sm">Open to connections.</p>
-                                                )}
-                                            </div>
-
-                                            <div className="pt-4 border-t border-white/5 text-center text-xs text-zinc-500 font-semibold">
-                                                Searching for meaningful connections
-                                            </div>
+                                    {profileUser.isVerified && (
+                                        <div className="absolute -bottom-2 -right-2 bg-gradient-to-br from-blue-500 to-blue-600 text-white p-2 rounded-full border-4 border-zinc-950 shadow-[0_0_16px_rgba(96,165,250,0.7)] animate-bounce-in" title="Verified Student">
+                                            <BadgeCheck className="w-5 h-5 md:w-6 md:h-6 fill-white/10" />
                                         </div>
                                     )}
                                 </div>
-                            )}
 
-                            {/* 2. Completeness Circle */}
+                                {/* Identity text */}
+                                <div className="text-center md:text-left space-y-3">
+                                    <div>
+                                        <div className="flex flex-wrap justify-center md:justify-start items-center gap-2 mb-1">
+                                            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">
+                                                {isSelf ? profileUser.realName : profileUser.anonymousId}
+                                            </h1>
+                                            {profileUser.isPremium && (
+                                                <span className="px-2.5 py-0.5 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-full text-[10px] font-black tracking-wider uppercase text-white shadow-[0_0_10px_rgba(245,158,11,0.5)]">
+                                                    PRO
+                                                </span>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="flex items-center justify-center md:justify-start gap-1.5 text-zinc-400 font-semibold text-sm">
+                                            <GraduationCap className="w-4 h-4 text-neon" />
+                                            <span>{profileUser.university}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                                        <span className="bg-zinc-850 px-3 py-1 rounded-full text-xs border border-white/5 text-zinc-300 font-medium">
+                                            {profileUser.year}
+                                        </span>
+                                        <span className="bg-zinc-850 px-3 py-1 rounded-full text-xs border border-white/5 text-zinc-300 font-medium">
+                                            {profileUser.branch}
+                                        </span>
+                                        <span className="bg-zinc-850 px-3 py-1 rounded-full text-xs border border-white/5 text-zinc-300 font-medium uppercase">
+                                            {profileUser.gender}
+                                        </span>
+                                        {profileUser.dob && (
+                                            <span className="bg-zinc-850 px-3 py-1 rounded-full text-xs border border-white/5 text-zinc-300 font-medium">
+                                                {new Date().getFullYear() - new Date(profileUser.dob).getFullYear()} Years Old
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    {!isEditing && (
+                                        <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start">
+                                            {isSelf ? (
+                                                <>
+                                                    <button
+                                                        onClick={startEdit}
+                                                        className="px-6 py-3 rounded-xl bg-white text-black hover:bg-neon hover:text-white transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(255,255,255,0.05)] hover:shadow-[0_10px_20px_rgba(255,0,127,0.3)] hover:-translate-y-0.5 active:translate-y-0"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" /> Edit Profile Details
+                                                    </button>
+                                                    {!currentUser?.isVerified && (
+                                                        <button
+                                                            onClick={() => setShowVerification(true)}
+                                                            className="px-6 py-3 rounded-xl bg-zinc-950 border border-white/10 text-zinc-300 hover:border-blue-500/50 hover:bg-blue-950/20 hover:text-blue-400 transition-all font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
+                                                        >
+                                                            <Shield className="w-3.5 h-3.5" /> Verify Account
+                                                        </button>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div className="flex gap-3 w-full sm:w-auto">
+                                                    <button onClick={() => navigate.push(`/chat/${profileUser.id}`)} className="px-6 py-3 rounded-xl bg-neon text-white shadow-[0_10px_20px_rgba(255,0,127,0.3)] hover:bg-neon/90 hover:scale-[1.02] transition-all font-bold text-xs uppercase tracking-wider flex items-center gap-2 justify-center">
+                                                        <MessageCircle className="w-4 h-4" /> Message
+                                                    </button>
+                                                    <button className="px-4 py-3 rounded-xl bg-zinc-950 border border-white/10 hover:bg-zinc-800 transition-all flex items-center justify-center">
+                                                        <Phone className="w-4 h-4 text-zinc-300" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Completeness Ring directly in Hero Card for Self */}
                             {(isSelf && !isEditing) && (
-                                <div className="flex items-center gap-5 p-5 bg-zinc-900/40 border border-white/5 rounded-3xl backdrop-blur-md shadow-lg">
+                                <div className="flex-shrink-0 flex items-center gap-4 p-4 bg-zinc-950/40 border border-white/5 rounded-3xl backdrop-blur-md self-stretch md:self-center">
                                     <div className="relative flex-shrink-0 w-16 h-16 flex items-center justify-center">
                                         <svg className="w-full h-full transform -rotate-90">
                                             <circle
@@ -650,16 +489,16 @@ export const Profile: React.FC = () => {
                                         </svg>
                                         <span className="absolute text-xs font-black text-white">{completeness}%</span>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-400 mb-0.5">Profile Strength</h4>
+                                    <div className="min-w-0 text-left">
+                                        <h4 className="font-bold text-[10px] uppercase tracking-widest text-zinc-500 mb-0.5">Profile Strength</h4>
                                         {completeness === 100 ? (
-                                            <p className="text-[11px] text-green-400 font-semibold">100% Complete! Perfect setup.</p>
+                                            <p className="text-[11px] text-green-400 font-semibold">100% Set Up</p>
                                         ) : (
                                             <p className="text-[11px] text-zinc-400 leading-snug">
                                                 {recommendations.length > 0 ? (
-                                                    <span>Next: <strong className="text-neon">{recommendations[0]}</strong></span>
+                                                    <span>Add <strong className="text-neon">{recommendations[0].toLowerCase().split(' ')[0]}...</strong></span>
                                                 ) : (
-                                                    "Complete details for better matching."
+                                                    "Improve setup"
                                                 )}
                                             </p>
                                         )}
@@ -667,416 +506,428 @@ export const Profile: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* 3. Hero Actions */}
-                            {!isEditing && (
-                                <div className="flex flex-col gap-3">
-                                    {isSelf ? (
-                                        <>
-                                            <button
-                                                onClick={startEdit}
-                                                className="w-full py-4 rounded-2xl bg-white text-black hover:bg-neon hover:text-white transition-all duration-300 font-bold text-sm flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(255,255,255,0.05)] hover:shadow-[0_10px_20px_rgba(255,0,127,0.3)] hover:-translate-y-0.5 active:translate-y-0"
-                                            >
-                                                <Edit2 className="w-4 h-4" /> Edit Profile Details
-                                            </button>
-                                            {!currentUser?.isVerified && (
-                                                <button
-                                                    onClick={() => setShowVerification(true)}
-                                                    className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/10 hover:border-blue-500/50 hover:bg-blue-950/20 text-white hover:text-blue-400 transition-all duration-300 font-bold text-sm flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
-                                                >
-                                                    <Shield className="w-4 h-4 animate-pulse" /> Verify Student Account
-                                                </button>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <div className="flex gap-3">
-                                            <button 
-                                                onClick={() => navigate.push(`/chat/${profileUser.id}`)} 
-                                                className="flex-1 py-4 rounded-2xl bg-neon hover:bg-neon/90 hover:shadow-[0_10px_25px_rgba(255,0,127,0.4)] text-white hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 font-bold text-sm flex items-center justify-center gap-2"
-                                            >
-                                                <MessageCircle className="w-5 h-5" /> Send Message
-                                            </button>
-                                            <button className="px-5 py-4 rounded-2xl bg-zinc-900 border border-white/10 hover:border-white/20 hover:bg-zinc-800 text-white hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300">
-                                                <Phone className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                        </div>
-
-                        {/* RIGHT COLUMN: Bento Grid Details or Edit Form */}
-                        <div className="md:col-span-7 space-y-6">
-                            {isEditing ? (
-                                <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2rem] p-6 md:p-8 animate-fade-in shadow-2xl">
-                                    <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
-                                        <h3 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-wide">
-                                            <Settings className="w-5 h-5 text-neon" /> Edit Profile Details
-                                        </h3>
-                                        <button onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-white transition-colors">
-                                            <X className="w-5 h-5" />
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        {/* Avatar and file upload */}
-                                        <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/5">
-                                            <div className="relative group/edit-avatar">
-                                                <div className="w-24 h-24 rounded-full border-2 border-white/10 overflow-hidden bg-zinc-800">
-                                                    <img
-                                                        src={getOptimizedUrl(editForm.avatar || profileUser.avatar || AVATAR_PRESETS[0], 192)}
-                                                        alt="Edit Avatar"
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </div>
-                                                <label className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover/edit-avatar:opacity-100 transition-opacity duration-300">
-                                                    <Camera className="w-6 h-6 text-white" />
-                                                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-                                                </label>
-                                            </div>
-                                            <div className="flex-1 text-center sm:text-left">
-                                                <span className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Or Choose a Quick Avatar</span>
-                                                <div className="flex gap-2.5 overflow-x-auto pb-2 max-w-[320px] sm:max-w-none custom-scrollbar">
-                                                    {AVATAR_PRESETS.map((avatar, i) => (
-                                                        <button 
-                                                            key={i} 
-                                                            type="button"
-                                                            onClick={() => setEditForm(prev => ({ ...prev, avatar }))} 
-                                                            className={`w-10 h-10 rounded-full border-2 flex-shrink-0 transition-all ${
-                                                                editForm.avatar === avatar ? 'border-neon scale-105' : 'border-zinc-800 opacity-60 hover:opacity-100'
-                                                            }`}
-                                                        >
-                                                            <img src={getOptimizedUrl(avatar, 40)} alt="" className="w-full h-full bg-zinc-800 rounded-full" />
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Real Name</label>
-                                                <NeonInput value={editForm.realName || ''} onChange={e => setEditForm({ ...editForm, realName: e.target.value })} />
-                                                <p className="text-[9px] text-zinc-500 mt-1.5 flex items-center gap-1">
-                                                    <Lock className="w-3 h-3 text-neon" /> Revealed only after mutual match.
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Branch / Major</label>
-                                                <NeonInput value={editForm.branch || ''} onChange={e => setEditForm({ ...editForm, branch: e.target.value })} />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Year of Study</label>
-                                                <div className="relative">
-                                                    <select
-                                                        className="w-full bg-gray-900 border-2 border-gray-800 text-white px-4 py-3 rounded-xl outline-none focus:border-neon appearance-none transition-all duration-300"
-                                                        value={editForm.year || '1st Year'}
-                                                        onChange={e => setEditForm({ ...editForm, year: e.target.value })}
-                                                    >
-                                                        {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
-                                                    </select>
-                                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Date of Birth</label>
-                                                <NeonInput
-                                                    type="date"
-                                                    value={editForm.dob || ''}
-                                                    onChange={e => setEditForm({ ...editForm, dob: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Bio</label>
-                                            <textarea
-                                                className="w-full bg-gray-900 border-2 border-gray-800 focus:border-neon text-white px-4 py-3 rounded-xl outline-none h-32 resize-none transition-all focus:ring-1 focus:ring-neon/50 placeholder-zinc-700 text-sm"
-                                                value={editForm.bio || ''}
-                                                onChange={e => setEditForm({ ...editForm, bio: e.target.value })}
-                                                placeholder="Write something about yourself, your interests, or what you're looking for..."
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Interests & Passions</label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {MOCK_INTERESTS.map(option => {
-                                                    const current = editForm.interests || [];
-                                                    const isSelected = current.includes(option);
-                                                    return (
-                                                        <button
-                                                            key={option}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const updated = isSelected
-                                                                    ? current.filter(i => i !== option)
-                                                                    : [...current, option];
-                                                                setEditForm({ ...editForm, interests: updated });
-                                                            }}
-                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
-                                                                isSelected
-                                                                    ? 'bg-teal-500 border-teal-500 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)]'
-                                                                    : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
-                                                            }`}
-                                                        >
-                                                            #{option}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Looking For</label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {LOOKING_FOR_OPTIONS.map(option => {
-                                                    const current = editForm.lookingFor || [];
-                                                    const isSelected = current.includes(option);
-                                                    return (
-                                                        <button
-                                                            key={option}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const updated = isSelected
-                                                                    ? current.filter(i => i !== option)
-                                                                    : [...current, option];
-                                                                setEditForm({ ...editForm, lookingFor: updated });
-                                                            }}
-                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
-                                                                isSelected
-                                                                    ? 'bg-pink-500 border-pink-500 text-white shadow-[0_0_12px_rgba(236,72,153,0.4)]'
-                                                                    : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
-                                                            }`}
-                                                        >
-                                                            {option}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-4 pt-6 border-t border-white/5">
-                                            <NeonButton onClick={saveProfile} className="flex-1" disabled={saving}>
-                                                {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save Changes'}
-                                            </NeonButton>
-                                            <button 
-                                                type="button"
-                                                onClick={() => setIsEditing(false)} 
-                                                className="px-6 py-3 rounded-full border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {/* About Box (Spans 2 cols on desktop) */}
-                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
-                                        <div className="absolute top-4 right-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
-                                            <Ghost className="w-32 h-32 text-white" />
-                                        </div>
-                                        <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-2 uppercase">About Me</span>
-                                        <p className="text-zinc-200 leading-relaxed text-base md:text-lg font-light italic relative z-10">
-                                            "{profileUser.bio || "Keeping it mysterious..."}"
-                                        </p>
-                                    </div>
-
-                                    {/* Academics Box */}
-                                    <div className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
-                                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="text-[10px] text-indigo-400 font-black tracking-widest uppercase">Academics</span>
-                                            <GraduationCap className="w-4 h-4 text-indigo-400" />
-                                        </div>
-                                        <h4 className="text-sm font-bold text-white mb-2 leading-snug">{profileUser.university}</h4>
-                                        <div className="space-y-1 text-xs text-zinc-400 font-medium">
-                                            <p>{profileUser.branch}</p>
-                                            <p>{profileUser.year}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Verification Card */}
-                                    <div className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
-                                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="text-[10px] text-blue-400 font-black tracking-widest uppercase">Student Verification</span>
-                                            <Shield className="w-4 h-4 text-blue-400" />
-                                        </div>
-                                        {profileUser.isVerified ? (
-                                            <div>
-                                                <div className="flex items-center gap-1.5 text-blue-400 font-bold text-sm mb-1">
-                                                    <BadgeCheck className="w-4 h-4 fill-blue-500/10" /> Status: Verified
-                                                </div>
-                                                <p className="text-[11px] text-zinc-500">Your student credentials are authenticated.</p>
-                                            </div>
-                                        ) : (
-                                            <div>
-                                                <div className="flex items-center gap-1.5 text-zinc-400 font-bold text-sm mb-2">
-                                                    <X className="w-4 h-4 text-zinc-500" /> Status: Unverified
-                                                </div>
-                                                {isSelf && (
-                                                    <button onClick={() => setShowVerification(true)} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline">
-                                                        Submit Verification Request <ExternalLink className="w-3 h-3" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Passions Box (Spans 2 cols on desktop) */}
-                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="text-[10px] text-teal-400 font-black tracking-widest uppercase">Interests & Passions</span>
-                                            <Heart className="w-4 h-4 text-teal-400" />
-                                        </div>
-                                        {profileUser.interests && profileUser.interests.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {profileUser.interests.map(interest => (
-                                                    <span key={interest} className="px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 hover:border-teal-400/50 hover:text-teal-300 rounded-2xl text-xs font-semibold text-teal-400/90 transition-colors">
-                                                        #{interest}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-xs text-zinc-500 italic">No interests added yet.</p>
-                                        )}
-                                    </div>
-
-                                    {/* Looking For Box (Spans 2 cols on desktop) */}
-                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="text-[10px] text-pink-400 font-black tracking-widest uppercase">Looking For</span>
-                                            <Search className="w-4 h-4 text-pink-400" />
-                                        </div>
-                                        {profileUser.lookingFor && profileUser.lookingFor.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2">
-                                                {profileUser.lookingFor.map(option => (
-                                                    <span key={option} className="px-3 py-1.5 bg-pink-500/10 border border-pink-500/20 rounded-2xl text-xs font-semibold text-pink-400/95">
-                                                        {option}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-xs text-zinc-500 italic">Looking for connections.</p>
-                                        )}
-                                    </div>
-
-                                    {/* Connected Settings Box (Spans 2 cols on desktop, isSelf only) */}
-                                    {isSelf && (
-                                        <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
-                                            <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-4 uppercase">Account & Settings</span>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {!currentUser?.username ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            setIsPasswordChangeOnly(false);
-                                                            setCredForm({ username: '', password: '' });
-                                                            setCredError(null);
-                                                            setShowCredentialsModal(true);
-                                                        }}
-                                                        className="p-4 rounded-2xl bg-neon/10 border border-neon/30 hover:bg-neon/20 hover:border-neon/50 text-left transition-all flex items-center gap-3 animate-pulse"
-                                                    >
-                                                        <div className="p-2 bg-neon/20 rounded-lg text-neon flex-shrink-0">
-                                                            <Lock className="w-4 h-4" />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <span className="font-bold text-neon text-xs block">Set Username</span>
-                                                            <span className="text-[10px] text-neon/70 font-light">Login credentials setup</span>
-                                                        </div>
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => {
-                                                            setIsPasswordChangeOnly(true);
-                                                            setCredForm({ username: currentUser.username || '', password: '' });
-                                                            setCredError(null);
-                                                            setShowCredentialsModal(true);
-                                                        }}
-                                                        className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
-                                                    >
-                                                        <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400 flex-shrink-0">
-                                                            <User className="w-4 h-4" />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <span className="font-bold text-zinc-200 text-xs block truncate">Change Password</span>
-                                                            <span className="text-[10px] text-zinc-500 truncate block">@{currentUser.username}</span>
-                                                        </div>
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    onClick={() => navigate.push('/contact')}
-                                                    className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
-                                                >
-                                                    <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 flex-shrink-0">
-                                                        <Mail className="w-4 h-4" />
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <span className="font-bold text-zinc-200 text-xs block">Contact Support</span>
-                                                        <span className="text-[10px] text-zinc-500">Submit a support ticket</span>
-                                                    </div>
-                                                </button>
-
-                                                <button
-                                                    onClick={handleInstallPWA}
-                                                    className="p-4 rounded-2xl bg-gradient-to-r from-neon/15 to-purple-600/15 border border-neon/20 hover:border-neon/40 text-left transition-all flex items-center gap-3"
-                                                >
-                                                    <div className="p-2 bg-neon/15 rounded-lg text-neon flex-shrink-0">
-                                                        <Smartphone className="w-4 h-4" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <span className="font-bold text-zinc-200 text-xs block">Install App</span>
-                                                        <span className="text-[10px] text-zinc-500 block truncate">Add to your home screen</span>
-                                                    </div>
-                                                </button>
-
-                                                <button
-                                                    onClick={logout}
-                                                    className="p-4 rounded-2xl bg-red-950/20 border border-red-900/30 hover:bg-red-900/20 hover:border-red-500/50 text-left transition-all flex items-center gap-3"
-                                                >
-                                                    <div className="p-2 bg-red-500/10 rounded-lg text-red-500 flex-shrink-0">
-                                                        <LogOut className="w-4 h-4" />
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-bold text-zinc-300 text-xs block">Log Out</span>
-                                                        <span className="text-[10px] text-zinc-500">Sign out of account</span>
-                                                    </div>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Extras & Info (Spans 2 cols on desktop) */}
-                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
-                                        <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-4 uppercase">Company & Legal Info</span>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                                            {[
-                                                { label: 'Story', icon: Rocket, path: '/blog' },
-                                                { label: 'Privacy', icon: Lock, path: '/privacy' },
-                                                { label: 'Terms', icon: Scale, path: '/terms' },
-                                                { label: 'Devs', icon: Code, path: '/developers' }
-                                            ].map(item => (
-                                                <button
-                                                    key={item.path}
-                                                    onClick={() => navigate.push(item.path)}
-                                                    className="py-2.5 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all flex items-center justify-center gap-2 text-zinc-400 hover:text-white"
-                                                >
-                                                    <item.icon className="w-3.5 h-3.5" />
-                                                    <span className="font-medium text-[11px]">{item.label}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
 
+                    {/* 2. DETAILS GRID */}
+                    <div className="w-full">
+                        {isEditing ? (
+                            <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-6 md:p-8 animate-fade-in shadow-2xl">
+                                <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
+                                    <h3 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-wide">
+                                        <Settings className="w-5 h-5 text-neon" /> Edit Profile Details
+                                    </h3>
+                                    <button onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-white transition-colors">
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-6">
+                                    {/* Avatar and file upload */}
+                                    <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/5">
+                                        <div className="relative group/edit-avatar">
+                                            <div className="w-24 h-24 rounded-full border-2 border-white/10 overflow-hidden bg-zinc-800">
+                                                <img
+                                                    src={getOptimizedUrl(editForm.avatar || profileUser.avatar || AVATAR_PRESETS[0], 192)}
+                                                    alt="Edit Avatar"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                            <label className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover/edit-avatar:opacity-100 transition-opacity duration-300">
+                                                <Camera className="w-6 h-6 text-white" />
+                                                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                                            </label>
+                                        </div>
+                                        <div className="flex-1 text-center sm:text-left">
+                                            <span className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Or Choose a Quick Avatar</span>
+                                            <div className="flex gap-2.5 overflow-x-auto pb-2 max-w-[320px] sm:max-w-none custom-scrollbar">
+                                                {AVATAR_PRESETS.map((avatar, i) => (
+                                                    <button 
+                                                        key={i} 
+                                                        type="button"
+                                                        onClick={() => setEditForm(prev => ({ ...prev, avatar }))} 
+                                                        className={`w-10 h-10 rounded-full border-2 flex-shrink-0 transition-all ${
+                                                            editForm.avatar === avatar ? 'border-neon scale-105' : 'border-zinc-800 opacity-60 hover:opacity-100'
+                                                        }`}
+                                                    >
+                                                        <img src={getOptimizedUrl(avatar, 40)} alt="" className="w-full h-full bg-zinc-800 rounded-full" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Real Name</label>
+                                            <NeonInput value={editForm.realName || ''} onChange={e => setEditForm({ ...editForm, realName: e.target.value })} />
+                                            <p className="text-[9px] text-zinc-500 mt-1.5 flex items-center gap-1">
+                                                <Lock className="w-3 h-3 text-neon" /> Revealed only after mutual match.
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Branch / Major</label>
+                                            <NeonInput value={editForm.branch || ''} onChange={e => setEditForm({ ...editForm, branch: e.target.value })} />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Year of Study</label>
+                                            <div className="relative">
+                                                <select
+                                                    className="w-full bg-gray-900 border-2 border-gray-800 text-white px-4 py-3 rounded-xl outline-none focus:border-neon appearance-none transition-all duration-300"
+                                                    value={editForm.year || '1st Year'}
+                                                    onChange={e => setEditForm({ ...editForm, year: e.target.value })}
+                                                >
+                                                    {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Date of Birth</label>
+                                            <NeonInput
+                                                type="date"
+                                                value={editForm.dob || ''}
+                                                onChange={e => setEditForm({ ...editForm, dob: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Bio</label>
+                                        <textarea
+                                            className="w-full bg-gray-900 border-2 border-gray-800 focus:border-neon text-white px-4 py-3 rounded-xl outline-none h-32 resize-none transition-all focus:ring-1 focus:ring-neon/50 placeholder-zinc-700 text-sm"
+                                            value={editForm.bio || ''}
+                                            onChange={e => setEditForm({ ...editForm, bio: e.target.value })}
+                                            placeholder="Write something about yourself, your interests, or what you're looking for..."
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Interests & Passions</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {MOCK_INTERESTS.map(option => {
+                                                const current = editForm.interests || [];
+                                                const isSelected = current.includes(option);
+                                                return (
+                                                    <button
+                                                        key={option}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const updated = isSelected
+                                                                ? current.filter(i => i !== option)
+                                                                : [...current, option];
+                                                            setEditForm({ ...editForm, interests: updated });
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
+                                                            isSelected
+                                                                ? 'bg-teal-500 border-teal-500 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)]'
+                                                                : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        #{option}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Looking For</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {LOOKING_FOR_OPTIONS.map(option => {
+                                                const current = editForm.lookingFor || [];
+                                                const isSelected = current.includes(option);
+                                                return (
+                                                    <button
+                                                        key={option}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const updated = isSelected
+                                                                ? current.filter(i => i !== option)
+                                                                : [...current, option];
+                                                            setEditForm({ ...editForm, lookingFor: updated });
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
+                                                            isSelected
+                                                                ? 'bg-pink-500 border-pink-500 text-white shadow-[0_0_12px_rgba(236,72,153,0.4)]'
+                                                                : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        {option}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4 pt-6 border-t border-white/5">
+                                        <NeonButton onClick={saveProfile} className="flex-1" disabled={saving}>
+                                            {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save Changes'}
+                                        </NeonButton>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setIsEditing(false)} 
+                                            className="px-6 py-3 rounded-full border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {/* About Box (Spans 2 cols on desktop) */}
+                                <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
+                                    <div className="absolute top-4 right-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                                        <Ghost className="w-32 h-32 text-white" />
+                                    </div>
+                                    <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-2 uppercase">About Me</span>
+                                    <p className="text-zinc-200 leading-relaxed text-base md:text-lg font-light italic relative z-10">
+                                        "{profileUser.bio || "Keeping it mysterious..."}"
+                                    </p>
+                                </div>
+
+                                {/* Academics Box */}
+                                <div className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
+                                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-[10px] text-indigo-400 font-black tracking-widest uppercase">Academics</span>
+                                        <GraduationCap className="w-4 h-4 text-indigo-400" />
+                                    </div>
+                                    <h4 className="text-sm font-bold text-white mb-2 leading-snug">{profileUser.university}</h4>
+                                    <div className="space-y-1 text-xs text-zinc-400 font-medium">
+                                        <p>{profileUser.branch}</p>
+                                        <p>{profileUser.year}</p>
+                                    </div>
+                                </div>
+
+                                {/* Verification Card */}
+                                <div className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
+                                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-[10px] text-blue-400 font-black tracking-widest uppercase">Student Verification</span>
+                                        <Shield className="w-4 h-4 text-blue-400" />
+                                    </div>
+                                    {profileUser.isVerified ? (
+                                        <div>
+                                            <div className="flex items-center gap-1.5 text-blue-400 font-bold text-sm mb-1">
+                                                <BadgeCheck className="w-4 h-4 fill-blue-500/10" /> Status: Verified
+                                            </div>
+                                            <p className="text-[11px] text-zinc-500">Your student credentials are authenticated.</p>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div className="flex items-center gap-1.5 text-zinc-400 font-bold text-sm mb-2">
+                                                <X className="w-4 h-4 text-zinc-500" /> Status: Unverified
+                                            </div>
+                                            {isSelf && (
+                                                <button onClick={() => setShowVerification(true)} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline">
+                                                    Submit Verification Request <ExternalLink className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Passions Box (Spans 2 cols on desktop) */}
+                                <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-[10px] text-teal-400 font-black tracking-widest uppercase">Interests & Passions</span>
+                                        <Heart className="w-4 h-4 text-teal-400" />
+                                    </div>
+                                    {profileUser.interests && profileUser.interests.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {profileUser.interests.map(interest => (
+                                                <span key={interest} className="px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 hover:border-teal-400/50 hover:text-teal-300 rounded-2xl text-xs font-semibold text-teal-400/90 transition-colors">
+                                                    #{interest}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-zinc-500 italic">No interests added yet.</p>
+                                    )}
+                                </div>
+
+                                {/* Looking For Box (Spans 2 cols on desktop) */}
+                                <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-[10px] text-pink-400 font-black tracking-widest uppercase">Looking For</span>
+                                        <Search className="w-4 h-4 text-pink-400" />
+                                    </div>
+                                    {profileUser.lookingFor && profileUser.lookingFor.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {profileUser.lookingFor.map(option => (
+                                                <span key={option} className="px-3 py-1.5 bg-pink-500/10 border border-pink-500/20 rounded-2xl text-xs font-semibold text-pink-400/95">
+                                                    {option}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-zinc-500 italic">Looking for connections.</p>
+                                    )}
+                                </div>
+
+                                {/* Prominent Legal, Guidelines & Safety Box (Spans 2 cols on desktop) */}
+                                <div className="sm:col-span-2 bg-gradient-to-br from-zinc-950/60 via-zinc-900/40 to-black border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-md shadow-lg relative overflow-hidden group hover:border-white/20 transition-all">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-neon/5 rounded-full blur-3xl pointer-events-none" />
+                                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+                                    
+                                    <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
+                                        <div>
+                                            <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                                <Shield className="w-5 h-5 text-neon animate-pulse" /> Safety, Community Guidelines & Protection
+                                            </h3>
+                                            <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Essential pages that protect and secure your identity on OthrHalff</p>
+                                        </div>
+                                        <Scale className="w-6 h-6 text-zinc-500" />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                                        {[
+                                            { label: 'Safety Hub', desc: 'Tips, reporting, & protection guidelines', icon: Shield, path: '/safety' },
+                                            { label: 'Community Guidelines', desc: 'Rules & expectations for students', icon: FileText, path: '/guidelines' },
+                                            { label: 'Privacy Policy', desc: 'How we guard your personal data', icon: Lock, path: '/privacy' },
+                                            { label: 'Terms of Service', desc: 'Legal agreements & expectations', icon: Scale, path: '/terms' }
+                                        ].map(item => (
+                                            <button
+                                                key={item.path}
+                                                onClick={() => navigate.push(item.path)}
+                                                className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/20 hover:bg-white/10 text-left transition-all flex flex-col gap-2 group/btn"
+                                            >
+                                                <div className="p-2 bg-zinc-950 border border-white/5 rounded-lg text-neon group-hover/btn:text-white group-hover/btn:border-neon/30 transition-colors w-fit">
+                                                    <item.icon className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <span className="font-bold text-zinc-200 text-xs block group-hover/btn:text-white transition-colors">{item.label}</span>
+                                                    <span className="text-[10px] text-zinc-500 block leading-tight mt-0.5">{item.desc}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Connected Settings Box (Spans 2 cols on desktop, isSelf only) */}
+                                {isSelf && (
+                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
+                                        <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-4 uppercase">Account & Settings</span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                            {!currentUser?.username ? (
+                                                <button
+                                                    onClick={() => {
+                                                        setIsPasswordChangeOnly(false);
+                                                        setCredForm({ username: '', password: '' });
+                                                        setCredError(null);
+                                                        setShowCredentialsModal(true);
+                                                    }}
+                                                    className="p-4 rounded-2xl bg-neon/10 border border-neon/30 hover:bg-neon/20 hover:border-neon/50 text-left transition-all flex items-center gap-3 animate-pulse"
+                                                >
+                                                    <div className="p-2 bg-neon/20 rounded-lg text-neon flex-shrink-0">
+                                                        <Lock className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="font-bold text-neon text-xs block">Set Username</span>
+                                                        <span className="text-[10px] text-neon/70 font-light">Login credentials setup</span>
+                                                    </div>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => {
+                                                        setIsPasswordChangeOnly(true);
+                                                        setCredForm({ username: currentUser.username || '', password: '' });
+                                                        setCredError(null);
+                                                        setShowCredentialsModal(true);
+                                                    }}
+                                                    className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                                >
+                                                    <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400 flex-shrink-0">
+                                                        <User className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="font-bold text-zinc-200 text-xs block truncate">Change Password</span>
+                                                        <span className="text-[10px] text-zinc-500 truncate block">@{currentUser.username}</span>
+                                                    </div>
+                                                </button>
+                                            )}
+
+                                            <button
+                                                onClick={() => navigate.push('/contact')}
+                                                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                            >
+                                                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 flex-shrink-0">
+                                                    <Mail className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="font-bold text-zinc-200 text-xs block">Contact Support</span>
+                                                    <span className="text-[10px] text-zinc-500">Submit a support ticket</span>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={handleInstallPWA}
+                                                className="p-4 rounded-2xl bg-gradient-to-r from-neon/15 to-purple-600/15 border border-neon/20 hover:border-neon/40 text-left transition-all flex items-center gap-3 animate-pulse"
+                                            >
+                                                <div className="p-2 bg-neon/15 rounded-lg text-neon flex-shrink-0">
+                                                    <Smartphone className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <span className="font-bold text-zinc-200 text-xs block">Install App</span>
+                                                    <span className="text-[10px] text-zinc-500 block truncate">Add to your home screen</span>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={logout}
+                                                className="p-4 rounded-2xl bg-red-950/20 border border-red-900/30 hover:bg-red-900/20 hover:border-red-500/50 text-left transition-all flex items-center gap-3 sm:col-span-2 md:col-span-1"
+                                            >
+                                                <div className="p-2 bg-red-500/10 rounded-lg text-red-500 flex-shrink-0">
+                                                    <LogOut className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <span className="font-bold text-zinc-300 text-xs block">Log Out</span>
+                                                    <span className="text-[10px] text-zinc-500">Sign out of account</span>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Extras & Info (Spans 2 cols on desktop) */}
+                                <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
+                                    <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-4 uppercase">Company & Startup Story</span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                        <button
+                                            onClick={() => navigate.push('/blog')}
+                                            className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/20 transition-all flex items-center gap-3 group text-left"
+                                        >
+                                            <div className="p-2.5 bg-neon/10 rounded-xl text-neon group-hover:scale-110 transition-transform">
+                                                <Rocket className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <span className="font-bold text-white text-xs block group-hover:text-neon transition-colors">The OthrHalff Story</span>
+                                                <span className="text-[10px] text-zinc-500">Read our startup blog & journey</span>
+                                            </div>
+                                        </button>
+
+                                        <button
+                                            onClick={() => navigate.push('/developers')}
+                                            className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/20 transition-all flex items-center gap-3 group text-left"
+                                        >
+                                            <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
+                                                <Code className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <span className="font-bold text-white text-xs block group-hover:text-blue-400 transition-colors">Meet the Devs</span>
+                                                <span className="text-[10px] text-zinc-500">The engineering team building this</span>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* --- Verification Modal --- */}
