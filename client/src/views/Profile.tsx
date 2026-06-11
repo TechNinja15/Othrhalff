@@ -9,9 +9,9 @@ import {
     LogOut, ChevronDown, Settings, Lock, ShieldBan,
     MessageCircle, Mail, Phone, Loader2, Heart, Search,
     Download, Smartphone, ExternalLink, Code, Scale, FileText,
-    Shield, Info, Briefcase, Users, Rocket
+    Shield, Info, Briefcase, Users, Rocket, Sparkles
 } from 'lucide-react';
-import { AVATAR_PRESETS, LOOKING_FOR_OPTIONS, YEAR_OPTIONS } from '../constants';
+import { AVATAR_PRESETS, LOOKING_FOR_OPTIONS, YEAR_OPTIONS, MOCK_INTERESTS } from '../constants';
 import { getOptimizedUrl } from '../utils/image';
 
 export const Profile: React.FC = () => {
@@ -23,6 +23,46 @@ export const Profile: React.FC = () => {
     // State
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
+
+    // Carousel & Swipe State
+    const [activeSlide, setActiveSlide] = useState(0);
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+    const totalSlides = 5;
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const handleTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > 50;
+        const isRightSwipe = distance < -50;
+        if (isLeftSwipe) {
+            setActiveSlide(prev => (prev + 1) % totalSlides);
+        } else if (isRightSwipe) {
+            setActiveSlide(prev => (prev - 1 + totalSlides) % totalSlides);
+        }
+        setTouchStart(null);
+        setTouchEnd(null);
+    };
+
+    const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = rect.width;
+        if (clickX < width * 0.35) {
+            setActiveSlide(prev => (prev - 1 + totalSlides) % totalSlides);
+        } else {
+            setActiveSlide(prev => (prev + 1) % totalSlides);
+        }
+    };
     const [showVerification, setShowVerification] = useState(false);
     const [verifyStep, setVerifyStep] = useState(1);
     const [verifyData, setVerifyData] = useState({ college: '', email: '', file: null as File | null });
@@ -145,6 +185,31 @@ export const Profile: React.FC = () => {
 
     // Resolve which profile to show
     const profileUser = isSelf ? currentUser : fetchedProfile;
+
+    // Profile completeness computation
+    const getProfileCompleteness = (user: UserProfile) => {
+        let score = 0;
+        if (user.avatar) score += 25;
+        if (user.bio && user.bio.trim().length > 0) score += 25;
+        if (user.interests && user.interests.length >= 3) score += 20;
+        else if (user.interests && user.interests.length > 0) score += 10;
+        if (user.lookingFor && user.lookingFor.length >= 1) score += 15;
+        if (user.isVerified) score += 15;
+        return Math.min(100, score);
+    };
+
+    const getCompletenessRecommendations = (user: UserProfile) => {
+        const recs: string[] = [];
+        if (!user.avatar) recs.push("Add a profile photo");
+        if (!user.bio || user.bio.trim().length === 0) recs.push("Write a bio about yourself");
+        if (!user.interests || user.interests.length < 3) recs.push("Add at least 3 interests");
+        if (!user.lookingFor || user.lookingFor.length === 0) recs.push("Choose what you're looking for");
+        if (!user.isVerified) recs.push("Verify your student email");
+        return recs;
+    };
+
+    const completeness = profileUser ? getProfileCompleteness(profileUser) : 0;
+    const recommendations = profileUser ? getCompletenessRecommendations(profileUser) : [];
 
     // Fetch Profile Data (if not self)
     useEffect(() => {
@@ -340,144 +405,374 @@ export const Profile: React.FC = () => {
                 {/* --- Main Content --- */}
                 <div className="space-y-6 md:space-y-8">
 
-                    {/* 1. HERO SECTION (Identity) */}
-                    <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800 rounded-[2rem] p-6 md:p-10 shadow-2xl relative overflow-hidden group">
+                    {/* Main Columns */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start">
 
-                        {/* Desktop: Glow behind avatar */}
-                        <div className="hidden md:block absolute top-0 left-0 w-full h-full bg-gradient-to-r from-neon/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                        {/* LEFT COLUMN: Premium Card + Completeness Meter + Actions */}
+                        <div className="md:col-span-5 flex flex-col gap-6">
 
-                        <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 relative z-10">
+                            {/* 1. Carousel Card */}
+                            {!isEditing && (
+                                <div
+                                    onTouchStart={handleTouchStart}
+                                    onTouchMove={handleTouchMove}
+                                    onTouchEnd={handleTouchEnd}
+                                    onClick={handleCardClick}
+                                    className="w-full aspect-[3/4] relative bg-zinc-950 rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden cursor-pointer group hover:border-white/20 transition-all duration-300"
+                                >
+                                    {/* Story indicator bars */}
+                                    <div className="absolute top-4 left-4 right-4 z-20 flex gap-1.5">
+                                        {Array.from({ length: totalSlides }).map((_, idx) => (
+                                            <div key={idx} className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full bg-white transition-all duration-300 ${
+                                                        idx <= activeSlide ? 'w-full' : 'w-0'
+                                                    }`} 
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
 
-                            {/* Avatar */}
-                            <div className="relative flex-shrink-0">
-                                <div className="w-32 h-32 md:w-48 md:h-48 rounded-full border-4 border-[#0a0a0a] shadow-[0_0_40px_rgba(0,0,0,0.6)] overflow-hidden bg-gray-800 relative group/avatar">
-                                    <img
-                                        src={getOptimizedUrl(isEditing ? (editForm.avatar || profileUser.avatar) : profileUser.avatar, 384)}
-                                        alt="Avatar"
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-105"
-                                    />
-                                    {isEditing && (
-                                        <label className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer opacity-0 group-hover/avatar:opacity-100 transition-opacity">
-                                            <Camera className="w-10 h-10 text-white" />
-                                            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-                                        </label>
+                                    {/* Left/Right click zone guides visible on hover */}
+                                    <div className="absolute inset-y-0 left-0 w-1/4 z-10 bg-gradient-to-r from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex items-center justify-start pl-4">
+                                        <ChevronDown className="w-5 h-5 text-white/50 rotate-90" />
+                                    </div>
+                                    <div className="absolute inset-y-0 right-0 w-1/4 z-10 bg-gradient-to-l from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex items-center justify-end pr-4">
+                                        <ChevronDown className="w-5 h-5 text-white/50 -rotate-90" />
+                                    </div>
+
+                                    {/* Slide 0: Portrait Photo Card */}
+                                    {activeSlide === 0 && (
+                                        <div className="absolute inset-0 select-none">
+                                            <img
+                                                src={getOptimizedUrl(profileUser.avatar || AVATAR_PRESETS[0], 500)}
+                                                alt="Profile Avatar"
+                                                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                                            />
+                                            {/* Bottom Vignette Overlay */}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+                                            
+                                            {/* Quick visual badge overlays */}
+                                            <div className="absolute top-12 left-4 flex gap-2 flex-wrap z-20">
+                                                <span className="px-2.5 py-1 bg-black/40 backdrop-blur border border-white/10 rounded-full text-[10px] font-bold tracking-wider uppercase text-white">
+                                                    {profileUser.gender}
+                                                </span>
+                                                {profileUser.isPremium && (
+                                                    <span className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-yellow-600 rounded-full text-[10px] font-bold tracking-wider uppercase text-white shadow-[0_0_10px_rgba(245,158,11,0.5)]">
+                                                        PRO
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Profile overlay details at bottom */}
+                                            <div className="absolute bottom-6 left-6 right-6 z-20 text-left">
+                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                                                        {isSelf ? profileUser.realName : profileUser.anonymousId}
+                                                    </h2>
+                                                    {profileUser.isVerified && (
+                                                        <BadgeCheck className="w-6 h-6 text-blue-400 fill-blue-400/20 drop-shadow-[0_0_8px_rgba(96,165,250,0.6)] animate-pulse" />
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5 text-white/80 text-xs font-semibold drop-shadow-sm">
+                                                    <GraduationCap className="w-4 h-4 text-neon" />
+                                                    <span className="truncate">{profileUser.university}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Slide 1: Academic Identity */}
+                                    {activeSlide === 1 && (
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#0b0c1e] via-[#10143a] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
+                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                            <div className="space-y-4">
+                                                <div className="inline-flex p-3.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl shadow-inner">
+                                                    <GraduationCap className="w-8 h-8" />
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-black tracking-widest text-indigo-400 block mb-1">STUDENT PROFILE</span>
+                                                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight leading-tight">
+                                                        {profileUser.university}
+                                                    </h3>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-4 pt-4 border-t border-white/5">
+                                                <div>
+                                                    <span className="text-[10px] text-zinc-500 font-bold block mb-0.5">MAJOR / BRANCH</span>
+                                                    <p className="text-base text-zinc-300 font-semibold">{profileUser.branch || 'Undecided'}</p>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <span className="text-[10px] text-zinc-500 font-bold block mb-0.5">ACADEMIC YEAR</span>
+                                                        <p className="text-base text-zinc-300 font-semibold">{profileUser.year}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[10px] text-zinc-500 font-bold block mb-0.5">STATUS</span>
+                                                        {profileUser.isVerified ? (
+                                                            <span className="inline-flex items-center gap-1 text-xs text-blue-400 font-bold mt-1">
+                                                                <BadgeCheck className="w-4 h-4 fill-blue-500/10" /> Verified Student
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 text-xs text-zinc-500 font-bold mt-1">
+                                                                <Shield className="w-4 h-4" /> Unverified
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Slide 2: About Me (Bio) */}
+                                    {activeSlide === 2 && (
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#1c0b24] via-[#221033] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
+                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                            <div className="space-y-4">
+                                                <div className="inline-flex p-3.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-2xl shadow-inner">
+                                                    <User className="w-8 h-8" />
+                                                </div>
+                                                <span className="text-[10px] font-black tracking-widest text-purple-400 block">MY STORY</span>
+                                            </div>
+
+                                            <div className="flex-1 flex items-center py-4">
+                                                <p className="text-lg md:text-xl font-light text-zinc-200 italic leading-relaxed tracking-wide">
+                                                    "{profileUser.bio || "Keeping it mysterious..."}"
+                                                </p>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-white/5 flex justify-between items-center text-xs text-zinc-500 font-semibold">
+                                                <span>GENDER: {profileUser.gender}</span>
+                                                {profileUser.dob && (
+                                                    <span>BORN: {new Date(profileUser.dob).getFullYear()}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Slide 3: Passions & Interests */}
+                                    {activeSlide === 3 && (
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#061e1f] via-[#0b2b2d] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
+                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                            <div className="space-y-4">
+                                                <div className="inline-flex p-3.5 bg-teal-500/10 border border-teal-500/20 text-teal-400 rounded-2xl shadow-inner">
+                                                    <Heart className="w-8 h-8" />
+                                                </div>
+                                                <span className="text-[10px] font-black tracking-widest text-teal-400 block">PASSIONS</span>
+                                            </div>
+
+                                            <div className="flex-1 flex items-center justify-center py-4">
+                                                {profileUser.interests && profileUser.interests.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-2 justify-center max-h-[180px] overflow-y-auto custom-scrollbar">
+                                                        {profileUser.interests.map(interest => (
+                                                            <span key={interest} className="px-3.5 py-1.5 bg-white/5 border border-white/10 rounded-full text-xs font-bold text-teal-300">
+                                                                #{interest}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-zinc-500 italic text-sm">No interests selected yet.</p>
+                                                )}
+                                            </div>
+
+                                            <div className="pt-4 border-t border-white/5 text-center text-xs text-zinc-500 font-semibold">
+                                                {profileUser.interests?.length || 0} interests selected
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Slide 4: Looking For */}
+                                    {activeSlide === 4 && (
+                                        <div className="absolute inset-0 bg-gradient-to-br from-[#1e0712] via-[#2d0c1b] to-black flex flex-col justify-between p-8 text-left select-none overflow-hidden">
+                                            <div className="absolute -top-12 -right-12 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
+                                            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                            <div className="space-y-4">
+                                                <div className="inline-flex p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl shadow-inner">
+                                                    <Search className="w-8 h-8" />
+                                                </div>
+                                                <span className="text-[10px] font-black tracking-widest text-rose-400 block">LOOKING FOR</span>
+                                            </div>
+
+                                            <div className="flex-1 flex items-center justify-center py-4">
+                                                {profileUser.lookingFor && profileUser.lookingFor.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-2.5 justify-center">
+                                                        {profileUser.lookingFor.map(option => (
+                                                            <span key={option} className="px-4 py-2 bg-gradient-to-r from-pink-500/10 to-rose-500/10 border border-pink-500/20 rounded-2xl text-xs font-bold text-pink-200 shadow-sm">
+                                                                {option}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-zinc-500 italic text-sm">Open to connections.</p>
+                                                )}
+                                            </div>
+
+                                            <div className="pt-4 border-t border-white/5 text-center text-xs text-zinc-500 font-semibold">
+                                                Searching for meaningful connections
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
-                                {profileUser.isVerified && (
-                                    <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white p-1.5 md:p-2 rounded-full border-4 border-[#0a0a0a] shadow-[0_0_16px_rgba(96,165,250,0.7)] animate-bounce-in" title="Verified Student">
-                                        <BadgeCheck className="w-5 h-5 md:w-6 md:h-6" />
-                                    </div>
-                                )}
-                            </div>
+                            )}
 
-                            {/* Info & Actions */}
-                            <div className="flex-1 text-center md:text-left w-full">
-                                <div className="mb-4 md:mb-6">
-                                    <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-2">
-                                        {/* Show Real Name if Self or Revealed (Matches usually revealed). For now we assume matches are revealed in chat context, but here let's stick to strict privacy unless isSelf */}
-                                        {isSelf ? profileUser.realName : profileUser.anonymousId}
-                                    </h1>
-                                    <div className="flex flex-col md:flex-row items-center gap-3 text-gray-400 font-medium">
-                                        <div className="flex items-center gap-2">
-                                            <GraduationCap className="w-5 h-5 text-neon" />
-                                            <span className="text-base md:text-lg">{profileUser.university}</span>
-                                        </div>
-                                        <span className="hidden md:inline text-gray-700">•</span>
-                                        <div className="flex flex-wrap justify-center gap-2">
-                                            <span className="bg-gray-800 px-3 py-1 rounded-full text-xs md:text-sm border border-gray-700 text-gray-300 whitespace-nowrap">
-                                                {profileUser.year}
-                                            </span>
-                                            <span className="bg-gray-800 px-3 py-1 rounded-full text-xs md:text-sm border border-gray-700 text-gray-300 whitespace-nowrap">
-                                                {profileUser.branch}
-                                            </span>
-                                            {profileUser.dob && (
-                                                <span className="bg-gray-800 px-3 py-1 rounded-full text-xs md:text-sm border border-gray-700 text-gray-300 whitespace-nowrap">
-                                                    {new Date(profileUser.dob).getFullYear()}
-                                                </span>
-                                            )}
-                                        </div>
+                            {/* 2. Completeness Circle */}
+                            {(isSelf && !isEditing) && (
+                                <div className="flex items-center gap-5 p-5 bg-zinc-900/40 border border-white/5 rounded-3xl backdrop-blur-md shadow-lg">
+                                    <div className="relative flex-shrink-0 w-16 h-16 flex items-center justify-center">
+                                        <svg className="w-full h-full transform -rotate-90">
+                                            <circle
+                                                cx="32"
+                                                cy="32"
+                                                r="26"
+                                                className="stroke-zinc-800"
+                                                strokeWidth="4"
+                                                fill="transparent"
+                                            />
+                                            <circle
+                                                cx="32"
+                                                cy="32"
+                                                r="26"
+                                                className="stroke-neon transition-all duration-500 ease-out"
+                                                strokeWidth="4"
+                                                fill="transparent"
+                                                strokeDasharray={2 * Math.PI * 26}
+                                                strokeDashoffset={2 * Math.PI * 26 - (completeness / 100) * (2 * Math.PI * 26)}
+                                                strokeLinecap="round"
+                                            />
+                                        </svg>
+                                        <span className="absolute text-xs font-black text-white">{completeness}%</span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-400 mb-0.5">Profile Strength</h4>
+                                        {completeness === 100 ? (
+                                            <p className="text-[11px] text-green-400 font-semibold">100% Complete! Perfect setup.</p>
+                                        ) : (
+                                            <p className="text-[11px] text-zinc-400 leading-snug">
+                                                {recommendations.length > 0 ? (
+                                                    <span>Next: <strong className="text-neon">{recommendations[0]}</strong></span>
+                                                ) : (
+                                                    "Complete details for better matching."
+                                                )}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
+                            )}
 
-                                {/* Action Buttons */}
-                                {isSelf ? (
-                                    !isEditing && (
-                                        <div className="flex flex-col md:flex-row gap-3 justify-center md:justify-start">
+                            {/* 3. Hero Actions */}
+                            {!isEditing && (
+                                <div className="flex flex-col gap-3">
+                                    {isSelf ? (
+                                        <>
                                             <button
                                                 onClick={startEdit}
-                                                className="px-8 py-3 rounded-xl bg-white text-black hover:bg-neon hover:text-white transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,0,127,0.4)]"
+                                                className="w-full py-4 rounded-2xl bg-white text-black hover:bg-neon hover:text-white transition-all duration-300 font-bold text-sm flex items-center justify-center gap-2 shadow-[0_10px_20px_rgba(255,255,255,0.05)] hover:shadow-[0_10px_20px_rgba(255,0,127,0.3)] hover:-translate-y-0.5 active:translate-y-0"
                                             >
-                                                <Edit2 className="w-4 h-4" /> Edit Profile
+                                                <Edit2 className="w-4 h-4" /> Edit Profile Details
                                             </button>
                                             {!currentUser?.isVerified && (
                                                 <button
                                                     onClick={() => setShowVerification(true)}
-                                                    className="px-8 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 hover:border-blue-500/50 hover:text-blue-400 transition-all font-bold text-sm flex items-center justify-center gap-2"
+                                                    className="w-full py-4 rounded-2xl bg-zinc-900 border border-white/10 hover:border-blue-500/50 hover:bg-blue-950/20 text-white hover:text-blue-400 transition-all duration-300 font-bold text-sm flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
                                                 >
-                                                    <ShieldBan className="w-4 h-4" /> Get Verified
+                                                    <Shield className="w-4 h-4 animate-pulse" /> Verify Student Account
                                                 </button>
                                             )}
+                                        </>
+                                    ) : (
+                                        <div className="flex gap-3">
+                                            <button 
+                                                onClick={() => navigate.push(`/chat/${profileUser.id}`)} 
+                                                className="flex-1 py-4 rounded-2xl bg-neon hover:bg-neon/90 hover:shadow-[0_10px_25px_rgba(255,0,127,0.4)] text-white hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 font-bold text-sm flex items-center justify-center gap-2"
+                                            >
+                                                <MessageCircle className="w-5 h-5" /> Send Message
+                                            </button>
+                                            <button className="px-5 py-4 rounded-2xl bg-zinc-900 border border-white/10 hover:border-white/20 hover:bg-zinc-800 text-white hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300">
+                                                <Phone className="w-5 h-5" />
+                                            </button>
                                         </div>
-                                    )
-                                ) : (
-                                    <div className="flex gap-4 justify-center md:justify-start">
-                                        <button onClick={() => navigate.push(`/chat/${profileUser.id}`)} className="px-8 py-3 rounded-xl bg-neon text-white shadow-[0_0_20px_rgba(255,0,127,0.4)] hover:bg-neon/90 hover:scale-105 transition-all font-bold text-sm flex items-center gap-2">
-                                            <MessageCircle className="w-5 h-5" /> Message
-                                        </button>
-                                        <button className="px-6 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 hover:bg-gray-700 transition-all font-bold text-sm">
-                                            <Phone className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
+
                         </div>
-                    </div>
 
-                    {/* 2. DETAILS GRID */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start">
-
-                        {/* Left Col: Bio & Interests */}
-                        <div className={`${(isSelf && !isEditing) ? 'md:col-span-7' : 'md:col-span-12'} space-y-6`}>
+                        {/* RIGHT COLUMN: Bento Grid Details or Edit Form */}
+                        <div className="md:col-span-7 space-y-6">
                             {isEditing ? (
-                                <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-[2rem] p-6 md:p-8 animate-fade-in shadow-xl">
-                                    <div className="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
-                                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                            <Settings className="w-5 h-5 text-neon" /> Edit Details
+                                <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-[2rem] p-6 md:p-8 animate-fade-in shadow-2xl">
+                                    <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
+                                        <h3 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-wide">
+                                            <Settings className="w-5 h-5 text-neon" /> Edit Profile Details
                                         </h3>
-                                        <button onClick={() => setIsEditing(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+                                        <button onClick={() => setIsEditing(false)} className="text-zinc-500 hover:text-white transition-colors">
+                                            <X className="w-5 h-5" />
+                                        </button>
                                     </div>
 
                                     <div className="space-y-6">
-                                        {/* Quick Avatars */}
-                                        <div>
-                                            <label className="text-xs text-gray-500 uppercase font-bold block mb-3">Quick Avatars</label>
-                                            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                                                {AVATAR_PRESETS.slice(0, 6).map((avatar, i) => (
-                                                    <button key={i} onClick={() => setEditForm({ ...editForm, avatar })} className={`w-12 h-12 rounded-full border-2 flex-shrink-0 transition-all ${editForm.avatar === avatar ? 'border-neon scale-110' : 'border-gray-700 opacity-60 hover:opacity-100'}`}>
-                                                        <img src={getOptimizedUrl(avatar, 48)} alt="" className="w-full h-full bg-gray-800" />
-                                                    </button>
-                                                ))}
+                                        {/* Avatar and file upload */}
+                                        <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-white/5 rounded-2xl border border-white/5">
+                                            <div className="relative group/edit-avatar">
+                                                <div className="w-24 h-24 rounded-full border-2 border-white/10 overflow-hidden bg-zinc-800">
+                                                    <img
+                                                        src={getOptimizedUrl(editForm.avatar || profileUser.avatar || AVATAR_PRESETS[0], 192)}
+                                                        alt="Edit Avatar"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+                                                <label className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover/edit-avatar:opacity-100 transition-opacity duration-300">
+                                                    <Camera className="w-6 h-6 text-white" />
+                                                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                                                </label>
+                                            </div>
+                                            <div className="flex-1 text-center sm:text-left">
+                                                <span className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Or Choose a Quick Avatar</span>
+                                                <div className="flex gap-2.5 overflow-x-auto pb-2 max-w-[320px] sm:max-w-none custom-scrollbar">
+                                                    {AVATAR_PRESETS.map((avatar, i) => (
+                                                        <button 
+                                                            key={i} 
+                                                            type="button"
+                                                            onClick={() => setEditForm(prev => ({ ...prev, avatar }))} 
+                                                            className={`w-10 h-10 rounded-full border-2 flex-shrink-0 transition-all ${
+                                                                editForm.avatar === avatar ? 'border-neon scale-105' : 'border-zinc-800 opacity-60 hover:opacity-100'
+                                                            }`}
+                                                        >
+                                                            <img src={getOptimizedUrl(avatar, 40)} alt="" className="w-full h-full bg-zinc-800 rounded-full" />
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                             <div>
-                                                <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Real Name</label>
+                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Real Name</label>
                                                 <NeonInput value={editForm.realName || ''} onChange={e => setEditForm({ ...editForm, realName: e.target.value })} />
-                                                <p className="text-[10px] text-gray-600 mt-1 flex items-center gap-1"><Lock className="w-3 h-3" /> Private until match.</p>
+                                                <p className="text-[9px] text-zinc-500 mt-1.5 flex items-center gap-1">
+                                                    <Lock className="w-3 h-3 text-neon" /> Revealed only after mutual match.
+                                                </p>
                                             </div>
                                             <div>
-                                                <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Branch</label>
+                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Branch / Major</label>
                                                 <NeonInput value={editForm.branch || ''} onChange={e => setEditForm({ ...editForm, branch: e.target.value })} />
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                             <div>
-                                                <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Year</label>
+                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Year of Study</label>
                                                 <div className="relative">
                                                     <select
-                                                        className="w-full bg-gray-900 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-neon appearance-none"
+                                                        className="w-full bg-gray-900 border-2 border-gray-800 text-white px-4 py-3 rounded-xl outline-none focus:border-neon appearance-none transition-all duration-300"
                                                         value={editForm.year || '1st Year'}
                                                         onChange={e => setEditForm({ ...editForm, year: e.target.value })}
                                                     >
@@ -487,7 +782,7 @@ export const Profile: React.FC = () => {
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Date of Birth</label>
+                                                <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Date of Birth</label>
                                                 <NeonInput
                                                     type="date"
                                                     value={editForm.dob || ''}
@@ -497,293 +792,311 @@ export const Profile: React.FC = () => {
                                         </div>
 
                                         <div>
-                                            <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Bio</label>
+                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Bio</label>
                                             <textarea
-                                                className="w-full bg-gray-900 border border-gray-700 text-white px-4 py-3 rounded-xl outline-none focus:border-neon h-32 resize-none transition-all focus:ring-1 focus:ring-neon/50"
+                                                className="w-full bg-gray-900 border-2 border-gray-800 focus:border-neon text-white px-4 py-3 rounded-xl outline-none h-32 resize-none transition-all focus:ring-1 focus:ring-neon/50 placeholder-zinc-700 text-sm"
                                                 value={editForm.bio || ''}
                                                 onChange={e => setEditForm({ ...editForm, bio: e.target.value })}
-                                                placeholder="Express yourself..."
+                                                placeholder="Write something about yourself, your interests, or what you're looking for..."
                                             />
                                         </div>
 
-                                        {/* Edit Looking For */}
                                         <div>
-                                            <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Looking For</label>
+                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Interests & Passions</label>
                                             <div className="flex flex-wrap gap-2">
-                                                {LOOKING_FOR_OPTIONS.map(option => (
-                                                    <button
-                                                        key={option}
-                                                        onClick={() => {
-                                                            const current = editForm.lookingFor || [];
-                                                            const updated = current.includes(option)
-                                                                ? current.filter(i => i !== option)
-                                                                : [...current, option];
-                                                            setEditForm({ ...editForm, lookingFor: updated });
-                                                        }}
-                                                        className={`px-3 py-1 rounded-full text-xs border transition-all ${(editForm.lookingFor || []).includes(option)
-                                                            ? 'bg-pink-500 border-pink-500 text-white shadow-lg'
-                                                            : 'bg-transparent border-gray-700 text-gray-400 hover:border-gray-500'
+                                                {MOCK_INTERESTS.map(option => {
+                                                    const current = editForm.interests || [];
+                                                    const isSelected = current.includes(option);
+                                                    return (
+                                                        <button
+                                                            key={option}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const updated = isSelected
+                                                                    ? current.filter(i => i !== option)
+                                                                    : [...current, option];
+                                                                setEditForm({ ...editForm, interests: updated });
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
+                                                                isSelected
+                                                                    ? 'bg-teal-500 border-teal-500 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)]'
+                                                                    : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
                                                             }`}
-                                                    >
-                                                        {option}
-                                                    </button>
-                                                ))}
+                                                        >
+                                                            #{option}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-4 pt-4 border-t border-gray-800">
+                                        <div>
+                                            <label className="text-[10px] text-zinc-500 font-bold block mb-2 uppercase">Looking For</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {LOOKING_FOR_OPTIONS.map(option => {
+                                                    const current = editForm.lookingFor || [];
+                                                    const isSelected = current.includes(option);
+                                                    return (
+                                                        <button
+                                                            key={option}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const updated = isSelected
+                                                                    ? current.filter(i => i !== option)
+                                                                    : [...current, option];
+                                                                setEditForm({ ...editForm, lookingFor: updated });
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
+                                                                isSelected
+                                                                    ? 'bg-pink-500 border-pink-500 text-white shadow-[0_0_12px_rgba(236,72,153,0.4)]'
+                                                                    : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
+                                                            }`}
+                                                        >
+                                                            {option}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-4 pt-6 border-t border-white/5">
                                             <NeonButton onClick={saveProfile} className="flex-1" disabled={saving}>
-                                                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Changes'}
+                                                {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save Changes'}
                                             </NeonButton>
-                                            <button onClick={() => setIsEditing(false)} className="px-6 py-3 rounded-xl border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800 transition-all font-bold">Cancel</button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setIsEditing(false)} 
+                                                className="px-6 py-3 rounded-full border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-bold text-xs uppercase tracking-wider"
+                                            >
+                                                Cancel
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             ) : (
-                                <>
-                                    {/* Bio Card */}
-                                    <div className="bg-gray-900/40 border border-gray-800 rounded-[2rem] p-8 backdrop-blur-md relative overflow-hidden h-50">
-                                        <Ghost className="absolute top-6 right-6 w-32 h-32 text-gray-800/50 rotate-12 pointer-events-none" />
-                                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                            <User className="w-5 h-5 text-neon" /> About Me
-                                        </h3>
-                                        <p className="text-gray-300 leading-relaxed text-lg font-light italic relative z-10">
-                                            "{profileUser.bio || "This user is keeping it mysterious."}"
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {/* About Box (Spans 2 cols on desktop) */}
+                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
+                                        <div className="absolute top-4 right-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                                            <Ghost className="w-32 h-32 text-white" />
+                                        </div>
+                                        <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-2 uppercase">About Me</span>
+                                        <p className="text-zinc-200 leading-relaxed text-base md:text-lg font-light italic relative z-10">
+                                            "{profileUser.bio || "Keeping it mysterious..."}"
                                         </p>
                                     </div>
 
-                                    {/* Interests */}
-                                    <div className="bg-gray-900/40 border border-gray-800 rounded-[2rem] p-8 backdrop-blur-md">
-                                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                            <Heart className="w-5 h-5 text-neon" /> Interests & Passions
-                                        </h3>
-                                        <div className="flex flex-wrap gap-3">
-                                            {profileUser.interests?.map(tag => (
-                                                <span key={tag} className="px-5 py-2 bg-black/40 border border-gray-700 rounded-2xl text-sm font-bold text-gray-300 hover:border-neon/50 hover:text-neon transition-colors cursor-default">
-                                                    #{tag}
-                                                </span>
+                                    {/* Academics Box */}
+                                    <div className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
+                                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] text-indigo-400 font-black tracking-widest uppercase">Academics</span>
+                                            <GraduationCap className="w-4 h-4 text-indigo-400" />
+                                        </div>
+                                        <h4 className="text-sm font-bold text-white mb-2 leading-snug">{profileUser.university}</h4>
+                                        <div className="space-y-1 text-xs text-zinc-400 font-medium">
+                                            <p>{profileUser.branch}</p>
+                                            <p>{profileUser.year}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Verification Card */}
+                                    <div className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
+                                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] text-blue-400 font-black tracking-widest uppercase">Student Verification</span>
+                                            <Shield className="w-4 h-4 text-blue-400" />
+                                        </div>
+                                        {profileUser.isVerified ? (
+                                            <div>
+                                                <div className="flex items-center gap-1.5 text-blue-400 font-bold text-sm mb-1">
+                                                    <BadgeCheck className="w-4 h-4 fill-blue-500/10" /> Status: Verified
+                                                </div>
+                                                <p className="text-[11px] text-zinc-500">Your student credentials are authenticated.</p>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <div className="flex items-center gap-1.5 text-zinc-400 font-bold text-sm mb-2">
+                                                    <X className="w-4 h-4 text-zinc-500" /> Status: Unverified
+                                                </div>
+                                                {isSelf && (
+                                                    <button onClick={() => setShowVerification(true)} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline">
+                                                        Submit Verification Request <ExternalLink className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Passions Box (Spans 2 cols on desktop) */}
+                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] text-teal-400 font-black tracking-widest uppercase">Interests & Passions</span>
+                                            <Heart className="w-4 h-4 text-teal-400" />
+                                        </div>
+                                        {profileUser.interests && profileUser.interests.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {profileUser.interests.map(interest => (
+                                                    <span key={interest} className="px-3 py-1.5 bg-teal-500/10 border border-teal-500/20 hover:border-teal-400/50 hover:text-teal-300 rounded-2xl text-xs font-semibold text-teal-400/90 transition-colors">
+                                                        #{interest}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-zinc-500 italic">No interests added yet.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Looking For Box (Spans 2 cols on desktop) */}
+                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] text-pink-400 font-black tracking-widest uppercase">Looking For</span>
+                                            <Search className="w-4 h-4 text-pink-400" />
+                                        </div>
+                                        {profileUser.lookingFor && profileUser.lookingFor.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {profileUser.lookingFor.map(option => (
+                                                    <span key={option} className="px-3 py-1.5 bg-pink-500/10 border border-pink-500/20 rounded-2xl text-xs font-semibold text-pink-400/95">
+                                                        {option}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-zinc-500 italic">Looking for connections.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Connected Settings Box (Spans 2 cols on desktop, isSelf only) */}
+                                    {isSelf && (
+                                        <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
+                                            <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-4 uppercase">Account & Settings</span>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {!currentUser?.username ? (
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsPasswordChangeOnly(false);
+                                                            setCredForm({ username: '', password: '' });
+                                                            setCredError(null);
+                                                            setShowCredentialsModal(true);
+                                                        }}
+                                                        className="p-4 rounded-2xl bg-neon/10 border border-neon/30 hover:bg-neon/20 hover:border-neon/50 text-left transition-all flex items-center gap-3 animate-pulse"
+                                                    >
+                                                        <div className="p-2 bg-neon/20 rounded-lg text-neon flex-shrink-0">
+                                                            <Lock className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <span className="font-bold text-neon text-xs block">Set Username</span>
+                                                            <span className="text-[10px] text-neon/70 font-light">Login credentials setup</span>
+                                                        </div>
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsPasswordChangeOnly(true);
+                                                            setCredForm({ username: currentUser.username || '', password: '' });
+                                                            setCredError(null);
+                                                            setShowCredentialsModal(true);
+                                                        }}
+                                                        className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                                    >
+                                                        <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400 flex-shrink-0">
+                                                            <User className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <span className="font-bold text-zinc-200 text-xs block truncate">Change Password</span>
+                                                            <span className="text-[10px] text-zinc-500 truncate block">@{currentUser.username}</span>
+                                                        </div>
+                                                    </button>
+                                                )}
+
+                                                <button
+                                                    onClick={() => navigate.push('/contact')}
+                                                    className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                                >
+                                                    <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 flex-shrink-0">
+                                                        <Mail className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="font-bold text-zinc-200 text-xs block">Contact Support</span>
+                                                        <span className="text-[10px] text-zinc-500">Submit a support ticket</span>
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    onClick={handleInstallPWA}
+                                                    className="p-4 rounded-2xl bg-gradient-to-r from-neon/15 to-purple-600/15 border border-neon/20 hover:border-neon/40 text-left transition-all flex items-center gap-3"
+                                                >
+                                                    <div className="p-2 bg-neon/15 rounded-lg text-neon flex-shrink-0">
+                                                        <Smartphone className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <span className="font-bold text-zinc-200 text-xs block">Install App</span>
+                                                        <span className="text-[10px] text-zinc-500 block truncate">Add to your home screen</span>
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    onClick={logout}
+                                                    className="p-4 rounded-2xl bg-red-950/20 border border-red-900/30 hover:bg-red-900/20 hover:border-red-500/50 text-left transition-all flex items-center gap-3"
+                                                >
+                                                    <div className="p-2 bg-red-500/10 rounded-lg text-red-500 flex-shrink-0">
+                                                        <LogOut className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-bold text-zinc-300 text-xs block">Log Out</span>
+                                                        <span className="text-[10px] text-zinc-500">Sign out of account</span>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Extras & Info (Spans 2 cols on desktop) */}
+                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
+                                        <span className="text-[10px] text-zinc-500 font-black tracking-widest block mb-4 uppercase">Company & Legal Info</span>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                            {[
+                                                { label: 'Story', icon: Rocket, path: '/blog' },
+                                                { label: 'Privacy', icon: Lock, path: '/privacy' },
+                                                { label: 'Terms', icon: Scale, path: '/terms' },
+                                                { label: 'Devs', icon: Code, path: '/developers' }
+                                            ].map(item => (
+                                                <button
+                                                    key={item.path}
+                                                    onClick={() => navigate.push(item.path)}
+                                                    className="py-2.5 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all flex items-center justify-center gap-2 text-zinc-400 hover:text-white"
+                                                >
+                                                    <item.icon className="w-3.5 h-3.5" />
+                                                    <span className="font-medium text-[11px]">{item.label}</span>
+                                                </button>
                                             ))}
                                         </div>
                                     </div>
-
-                                    {/* Looking For */}
-                                    <div className="bg-gray-900/40 border border-gray-800 rounded-[2rem] p-8 backdrop-blur-md mt-6">
-                                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                                            <Search className="w-5 h-5 text-pink-500" /> Looking For
-                                        </h3>
-                                        <div className="flex flex-wrap gap-3">
-                                            {(profileUser.lookingFor && profileUser.lookingFor.length > 0) ? profileUser.lookingFor.map(tag => (
-                                                <span key={tag} className="px-5 py-2 bg-pink-500/10 border border-pink-500/30 rounded-2xl text-sm font-bold text-pink-200 cursor-default">
-                                                    {tag}
-                                                </span>
-                                            )) : (
-                                                <span className="text-gray-500 italic">Not specified</span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Company & Legal (Collapsible) */}
-                                    <div className="bg-gray-900/40 border border-gray-800 rounded-[2rem] backdrop-blur-md mt-6 overflow-hidden">
-                                        <button
-                                            onClick={() => setShowLegal(!showLegal)}
-                                            className="w-full p-8 flex items-center justify-between text-left group"
-                                        >
-                                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                                <Scale className="w-5 h-5 text-gray-400" /> More from OTHRHALFF
-                                            </h3>
-                                            <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${showLegal ? 'rotate-180' : ''}`} />
-                                        </button>
-                                        <div className={`transition-all duration-300 ease-in-out ${showLegal ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'} overflow-hidden`}>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-8 pb-8">
-                                                {[
-                                                    { label: 'Our Blog', icon: Rocket, path: '/blog' },
-                                                    { label: 'About Us', icon: Info, path: '/about' },
-                                                    { label: 'Privacy Policy', icon: Lock, path: '/privacy' },
-                                                    { label: 'Terms of Service', icon: Scale, path: '/terms' },
-                                                    { label: 'Safety', icon: Shield, path: '/safety' },
-                                                    { label: 'Guidelines', icon: FileText, path: '/guidelines' },
-                                                    { label: 'Careers', icon: Briefcase, path: '/careers' },
-                                                ].map(item => (
-                                                    <button
-                                                        key={item.path}
-                                                        onClick={() => navigate.push(item.path)}
-                                                        className="w-full p-4 rounded-2xl hover:bg-gray-800/60 group text-left transition-all flex items-center gap-3 border border-gray-800 hover:border-gray-600 bg-black/20"
-                                                    >
-                                                        <item.icon className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" />
-                                                        <span className="text-sm font-medium text-gray-400 group-hover:text-white transition-colors truncate">{item.label}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
+                                </div>
                             )}
                         </div>
-
-                        {/* Right Col: Stats & Support (Conditional) */}
-                        {(isSelf && !isEditing) && (
-                            <div className="md:col-span-5 space-y-6 sticky top-6">
-                                {/* Account (Collapsible) */}
-                                <div className="bg-gray-900/40 border border-gray-800 rounded-[2rem] backdrop-blur-md overflow-hidden">
-                                    <button
-                                        onClick={() => setShowAccount(!showAccount)}
-                                        className="w-full p-6 flex items-center justify-between text-left"
-                                    >
-                                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Account</h3>
-                                        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${showAccount ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    <div className={`transition-all duration-300 ease-in-out ${showAccount ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'} overflow-hidden`}>
-                                        <div className="px-6 pb-6 space-y-3">
-                                            {!currentUser?.username ? (
-                                                <button
-                                                    onClick={() => {
-                                                        setIsPasswordChangeOnly(false);
-                                                        setCredForm({ username: '', password: '' });
-                                                        setCredError(null);
-                                                        setShowCredentialsModal(true);
-                                                    }}
-                                                    className="w-full p-4 rounded-xl bg-neon/10 border border-neon/30 hover:bg-neon/20 hover:border-neon/50 group text-left transition-all flex items-center gap-3 animate-pulse"
-                                                >
-                                                    <div className="p-2 bg-neon/20 rounded-lg text-neon">
-                                                        <Lock className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <span className="font-bold text-neon text-sm block">Set Username & Password</span>
-                                                        <span className="text-xs text-neon/70">Required for direct username login.</span>
-                                                    </div>
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => {
-                                                        setIsPasswordChangeOnly(true);
-                                                        setCredForm({ username: currentUser.username || '', password: '' });
-                                                        setCredError(null);
-                                                        setShowCredentialsModal(true);
-                                                    }}
-                                                    className="w-full p-4 rounded-xl bg-gray-800/50 border border-gray-700 hover:bg-gray-800 hover:border-gray-500 group text-left transition-all flex items-center gap-3"
-                                                >
-                                                    <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
-                                                        <User className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <span className="font-bold text-gray-200 group-hover:text-white text-sm block">Change Password</span>
-                                                        <span className="text-xs text-gray-500">Username: @{currentUser.username}</span>
-                                                    </div>
-                                                </button>
-                                            )}
-
-                                            <button
-                                                onClick={() => navigate.push('/contact')}
-                                                className="w-full p-4 rounded-xl bg-gray-800/50 border border-gray-700 hover:bg-gray-800 hover:border-gray-500 group text-left transition-all flex items-center gap-3"
-                                            >
-                                                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 group-hover:text-white transition-colors">
-                                                    <Mail className="w-5 h-5" />
-                                                </div>
-                                                <div>
-                                                    <span className="font-bold text-gray-200 group-hover:text-white text-sm block">Contact Support</span>
-                                                    <span className="text-xs text-gray-500">Need help? Let us know.</span>
-                                                </div>
-                                            </button>
-
-                                            <button
-                                                onClick={logout}
-                                                className="w-full p-4 rounded-xl bg-red-900/10 border border-red-900/30 hover:bg-red-900/20 hover:border-red-500/50 group text-left transition-all flex items-center gap-3"
-                                            >
-                                                <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
-                                                    <LogOut className="w-5 h-5" />
-                                                </div>
-                                                <span className="font-bold text-gray-300 group-hover:text-red-400 text-sm">Log Out</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Install App */}
-                                <div className="bg-gray-900/40 border border-gray-800 rounded-[2rem] p-6 backdrop-blur-md">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Install App</h3>
-                                    <button
-                                        onClick={handleInstallPWA}
-                                        className="w-full p-4 rounded-xl bg-gradient-to-r from-neon/20 to-purple-600/20 border border-neon/30 hover:border-neon/60 group text-left transition-all flex items-center gap-3"
-                                    >
-                                        <div className="p-2.5 bg-neon/10 rounded-xl text-neon">
-                                            <Smartphone className="w-5 h-5" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <span className="font-bold text-white text-sm block">Install OthrHalff</span>
-                                            <span className="text-xs text-gray-400">Add to home screen for the best experience</span>
-                                        </div>
-                                        <Download className="w-4 h-4 text-gray-500 group-hover:text-neon transition-colors" />
-                                    </button>
-                                </div>
-
-
-
-                                {/* Behind the Scenes (Collapsible) */}
-                                <div className="bg-gray-900/40 border border-gray-800 rounded-[2rem] backdrop-blur-md overflow-hidden">
-                                    <button
-                                        onClick={() => setShowBehindScenes(!showBehindScenes)}
-                                        className="w-full p-6 flex items-center justify-between text-left"
-                                    >
-                                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Behind the Scenes</h3>
-                                        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${showBehindScenes ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    <div className={`transition-all duration-300 ease-in-out ${showBehindScenes ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'} overflow-hidden`}>
-                                        <div className="px-6 pb-6 space-y-3">
-                                            {/* Blog Link */}
-                                            <button
-                                                onClick={() => navigate.push('/blog')}
-                                                className="w-full p-4 rounded-xl bg-gradient-to-r from-neon/10 to-transparent border border-neon/20 hover:border-neon/50 group text-left transition-all flex items-center gap-3"
-                                            >
-                                                <div className="p-2.5 bg-neon/10 rounded-xl text-neon group-hover:scale-110 transition-transform">
-                                                    <Rocket className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <span className="font-bold text-white text-sm block group-hover:text-neon transition-colors">The OthrHalff Story</span>
-                                                    <span className="text-xs text-gray-400">Read our startup blog</span>
-                                                </div>
-                                            </button>
-
-                                            {/* Developers Link */}
-                                            <button
-                                                onClick={() => navigate.push('/developers')}
-                                                className="w-full p-4 rounded-xl bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/20 hover:border-blue-500/40 group text-left transition-all flex items-center gap-3"
-                                            >
-                                                <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
-                                                    <Code className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <span className="font-bold text-white text-sm block">Meet the Devs</span>
-                                                    <span className="text-xs text-gray-400">The team building this</span>
-                                                </div>
-                                                <Users className="w-4 h-4 text-gray-500 group-hover:text-blue-400 transition-colors" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
                     </div>
+
                 </div>
 
                 {/* --- Verification Modal --- */}
                 {showVerification && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in">
-                        <div className="bg-gray-900 w-full max-w-md p-8 rounded-[2rem] border border-gray-800 shadow-2xl relative">
-                            <button onClick={() => setShowVerification(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><X className="w-6 h-6" /></button>
+                        <div className="bg-zinc-900 w-full max-w-md p-8 rounded-[2.5rem] border border-white/10 shadow-2xl relative">
+                            <button onClick={() => setShowVerification(false)} className="absolute top-6 right-6 text-zinc-500 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
 
                             <div className="text-center mb-8">
-                                <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-700 shadow-neon-sm">
-                                    <ShieldBan className="w-10 h-10 text-neon" />
+                                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/10 shadow-[0_0_20px_rgba(255,0,127,0.15)]">
+                                    <Shield className="w-10 h-10 text-neon" />
                                 </div>
                                 <h2 className="text-2xl font-black text-white">Student Verification</h2>
-                                <p className="text-sm text-gray-400 mt-2">Unlock the blue tick & exclusive features.</p>
+                                <p className="text-sm text-zinc-400 mt-2">Unlock the verified checkmark & exclusive features.</p>
                             </div>
 
                             {verifyStep === 1 ? (
                                 <div className="space-y-6">
                                     <div>
-                                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">College Email (.edu)</label>
+                                        <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">College Email (.edu)</label>
                                         <NeonInput placeholder="student@university.edu" value={verifyData.email} onChange={e => setVerifyData({ ...verifyData, email: e.target.value })} />
                                     </div>
                                     <NeonButton onClick={async () => {
@@ -811,41 +1124,42 @@ export const Profile: React.FC = () => {
                                         } finally {
                                             setSaving(false);
                                         }
-                                    }} className="w-full py-4 text-base" disabled={saving}>
+                                    }} className="w-full py-4 text-base rounded-full" disabled={saving}>
                                         {saving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Send Verification'}
                                     </NeonButton>
                                 </div>
                             ) : (
                                 <div className="text-center py-4">
-                                    <div className="w-16 h-16 bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-500/30 animate-pulse">
-                                        <CheckCircle2 className="w-8 h-8 text-green-500" />
+                                    <div className="w-16 h-16 bg-green-950/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-500/30 animate-pulse">
+                                        <CheckCircle2 className="w-8 h-8 text-green-400" />
                                     </div>
                                     <p className="text-white font-bold text-xl mb-2">Request Sent!</p>
-                                    <p className="text-sm text-gray-400 mb-8 px-4 leading-relaxed">Our team is reviewing your details. You will receive an email within 24 hours.</p>
-                                    <NeonButton onClick={() => setShowVerification(false)} className="w-full py-4 text-base">Done</NeonButton>
+                                    <p className="text-sm text-zinc-400 mb-8 px-4 leading-relaxed font-light">Our team is reviewing your details. You will receive an email within 24 hours.</p>
+                                    <NeonButton onClick={() => setShowVerification(false)} className="w-full py-4 text-base rounded-full">Done</NeonButton>
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
+
                 {/* --- Credentials Setup Modal --- */}
                 {showCredentialsModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in">
-                        <div className="bg-gray-900 w-full max-w-md p-8 rounded-[2rem] border border-gray-800 shadow-2xl relative">
-                            <button onClick={() => setShowCredentialsModal(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white"><X className="w-6 h-6" /></button>
+                        <div className="bg-zinc-900 w-full max-w-md p-8 rounded-[2.5rem] border border-white/10 shadow-2xl relative">
+                            <button onClick={() => setShowCredentialsModal(false)} className="absolute top-6 right-6 text-zinc-500 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
 
                             <div className="text-center mb-8">
-                                <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-700 shadow-neon-sm">
+                                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/10 shadow-[0_0_20px_rgba(255,0,127,0.15)]">
                                     <Lock className="w-10 h-10 text-neon" />
                                 </div>
                                 <h2 className="text-2xl font-black text-white">{isPasswordChangeOnly ? 'Change Password' : 'Account Setup'}</h2>
-                                <p className="text-sm text-gray-400 mt-2">
+                                <p className="text-sm text-zinc-400 mt-2 font-light">
                                     {isPasswordChangeOnly ? 'Set a new secure password for your account.' : 'Set a username and password to log in directly.'}
                                 </p>
                             </div>
 
                             {credError && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3 mb-6 animate-fade-in">
+                                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3 mb-6 animate-fade-in">
                                     <p className="text-xs text-red-400">{credError}</p>
                                 </div>
                             )}
@@ -853,7 +1167,7 @@ export const Profile: React.FC = () => {
                             <div className="space-y-6">
                                 {!isPasswordChangeOnly && (
                                     <div>
-                                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Choose Username</label>
+                                        <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">Choose Username</label>
                                         <div className="relative">
                                             <NeonInput
                                                 value={credForm.username}
@@ -861,19 +1175,20 @@ export const Profile: React.FC = () => {
                                                 placeholder="username"
                                                 className="pr-10"
                                             />
-                                            {credStatus === 'available' && <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500" />}
+                                            {credStatus === 'available' && <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-400 animate-bounce-in" />}
                                             {credStatus === 'taken' && <X className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-red-500" />}
-                                            {credStatus === 'checking' && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />}
+                                            {credStatus === 'checking' && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 animate-spin" />}
                                         </div>
 
-                                        <div className="mt-2 text-xs">
+                                        <div className="mt-2.5 text-xs">
                                             {credStatus === 'available' && <span className="text-green-400 font-medium">✓ Username available</span>}
                                             {credStatus === 'taken' && (
                                                 <div className="text-red-400">
                                                     <span>✗ Username already taken.</span>
-                                                    <div className="mt-1 text-gray-500">
-                                                        Try: {credSuggestions.map(u => (
-                                                            <span key={u} onClick={() => setCredForm(prev => ({ ...prev, username: u }))} className="text-neon cursor-pointer hover:underline mr-2">{u}</span>
+                                                    <div className="mt-1.5 text-zinc-500 flex flex-wrap gap-1.5 items-center">
+                                                        <span>Try:</span>
+                                                        {credSuggestions.map(u => (
+                                                            <span key={u} onClick={() => setCredForm(prev => ({ ...prev, username: u }))} className="text-neon cursor-pointer hover:underline font-semibold">{u}</span>
                                                         ))}
                                                     </div>
                                                 </div>
@@ -883,7 +1198,7 @@ export const Profile: React.FC = () => {
                                 )}
 
                                 <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">{isPasswordChangeOnly ? 'New Password' : 'Password'}</label>
+                                    <label className="text-xs font-bold text-zinc-500 uppercase mb-2 block">{isPasswordChangeOnly ? 'New Password' : 'Password'}</label>
                                     <NeonInput
                                         type="password"
                                         value={credForm.password}
@@ -892,7 +1207,7 @@ export const Profile: React.FC = () => {
                                     />
                                 </div>
 
-                                <NeonButton onClick={saveCredentials} className="w-full py-4 text-base" disabled={credSaving}>
+                                <NeonButton onClick={saveCredentials} className="w-full py-4 text-base rounded-full" disabled={credSaving}>
                                     {credSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save Changes'}
                                 </NeonButton>
                             </div>
