@@ -12,6 +12,7 @@ import {
     Shield, Info, Briefcase, Users, Rocket
 } from 'lucide-react';
 import { AVATAR_PRESETS, LOOKING_FOR_OPTIONS, YEAR_OPTIONS } from '../constants';
+import { getOptimizedUrl } from '../utils/image';
 
 export const Profile: React.FC = () => {
     const params = useParams();
@@ -233,7 +234,7 @@ export const Profile: React.FC = () => {
                             <div className="relative flex-shrink-0">
                                 <div className="w-32 h-32 md:w-48 md:h-48 rounded-full border-4 border-[#0a0a0a] shadow-[0_0_40px_rgba(0,0,0,0.6)] overflow-hidden bg-gray-800 relative group/avatar">
                                     <img
-                                        src={isEditing ? (editForm.avatar || profileUser.avatar) : profileUser.avatar}
+                                        src={getOptimizedUrl(isEditing ? (editForm.avatar || profileUser.avatar) : profileUser.avatar, 384)}
                                         alt="Avatar"
                                         className="w-full h-full object-cover transition-transform duration-500 group-hover/avatar:scale-105"
                                     />
@@ -335,7 +336,7 @@ export const Profile: React.FC = () => {
                                             <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
                                                 {AVATAR_PRESETS.slice(0, 6).map((avatar, i) => (
                                                     <button key={i} onClick={() => setEditForm({ ...editForm, avatar })} className={`w-12 h-12 rounded-full border-2 flex-shrink-0 transition-all ${editForm.avatar === avatar ? 'border-neon scale-110' : 'border-gray-700 opacity-60 hover:opacity-100'}`}>
-                                                        <img src={avatar} alt="" className="w-full h-full bg-gray-800" />
+                                                        <img src={getOptimizedUrl(avatar, 48)} alt="" className="w-full h-full bg-gray-800" />
                                                     </button>
                                                 ))}
                                             </div>

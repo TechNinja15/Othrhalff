@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { usePresence } from '../context/PresenceContext';
 import { supabase } from '../lib/supabase';
@@ -61,14 +61,70 @@ const MatchSkeleton = () => (
   </div>
 );
 
+interface ChatPreviewItemProps {
+  chat: ChatPreview;
+  isOnline: boolean;
+  onSelect: (chatId: string) => void;
+}
+
+const ChatPreviewItem = React.memo<ChatPreviewItemProps>(({ chat, isOnline, onSelect }) => {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Chat with ${chat.partner.realName || chat.partner.anonymousId}${chat.unreadCount > 0 ? `, ${chat.unreadCount} unread` : ''}`}
+      onClick={() => onSelect(chat.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(chat.id);
+        }
+      }}
+      className="group relative bg-gray-900/30 hover:bg-gray-800/50 border border-gray-800/50 hover:border-gray-700 rounded-2xl p-4 transition-all duration-300 cursor-pointer active:scale-[0.98]">
+      <div className="flex items-center gap-4">
+        <div className="relative">
+          <img src={getOptimizedUrl(chat.partner.avatar, 64)} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-gray-800 group-hover:border-gray-600 transition-colors" />
+          {isOnline && <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-black rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex justify-between items-start mb-0.5">
+            <div className="flex items-center gap-1 min-w-0 pr-2">
+              <h3 className="text-base font-bold text-gray-100 truncate group-hover:text-white transition-colors">{chat.partner.realName || chat.partner.anonymousId}</h3>
+              {chat.partner.isVerified && (
+                <BadgeCheck className="w-4 h-4 flex-shrink-0 drop-shadow-[0_0_4px_rgba(96,165,250,0.8)]" style={{ color: '#60a5fa' }} aria-hidden="true" />
+              )}
+            </div>
+            {chat.lastMessageTime && <span className="text-[10px] text-gray-500 font-mono whitespace-nowrap">{new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+          </div>
+          <div className="flex justify-between items-center">
+            <p className={`text-sm truncate pr-4 ${chat.unreadCount > 0 ? 'text-white font-semibold' : 'text-gray-500 group-hover:text-gray-400'}`}>{chat.lastMessage}</p>
+            {chat.unreadCount > 0 && <div className="bg-neon text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg shadow-neon/20 min-w-[20px] text-center">{chat.unreadCount}</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+ChatPreviewItem.displayName = 'ChatPreviewItem';
+
 export const Matches: React.FC = () => {
   const { currentUser } = useAuth();
-  const { isUserOnline } = usePresence();
+  const { isUserOnline, subscribeToUser, unsubscribeFromUser } = usePresence();
   const navigate = useNavigate();
 
   // 1. Initialize state variables to null / empty arrays to avoid SSR issues
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleChatSelect = useCallback((chatId: string) => {
+    setChats(prev => {
+      const updated = prev.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c);
+      writeCache(updated);
+      return updated;
+    });
+    navigate.push(`/chat/${chatId}`);
+  }, [navigate]);
 
   // Load cache and session state on mount
   useEffect(() => {
@@ -260,14 +316,23 @@ export const Matches: React.FC = () => {
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
     };
   }, [currentUser, loadMatches, refreshMatches]);
+  const filteredChats = useMemo(() => {
+    return chats.filter(chat => {
+      const matchesSearch = (chat.partner.realName || chat.partner.anonymousId).toLowerCase().includes(searchTerm.toLowerCase());
+      const isOnline = isUserOnline(chat.partner.id);
+      if (filter === 'online' && !isOnline) return false;
+      if (filter === 'unread' && chat.unreadCount === 0) return false;
+      return matchesSearch;
+    });
+  }, [chats, searchTerm, filter, isUserOnline]);
 
-  const filteredChats = chats.filter(chat => {
-    const matchesSearch = (chat.partner.realName || chat.partner.anonymousId).toLowerCase().includes(searchTerm.toLowerCase());
-    const isOnline = isUserOnline(chat.partner.id);
-    if (filter === 'online' && !isOnline) return false;
-    if (filter === 'unread' && chat.unreadCount === 0) return false;
-    return matchesSearch;
-  });
+  useEffect(() => {
+    if (chats.length === 0) return;
+    chats.forEach(chat => subscribeToUser(chat.partner.id));
+    return () => {
+      chats.forEach(chat => unsubscribeFromUser(chat.partner.id));
+    };
+  }, [chats, subscribeToUser, unsubscribeFromUser]);
 
   if (loading) {
     return (
@@ -306,53 +371,12 @@ export const Matches: React.FC = () => {
           </div>
         ) : (
           filteredChats.map(chat => (
-            <div key={chat.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`Chat with ${chat.partner.realName || chat.partner.anonymousId}${chat.unreadCount > 0 ? `, ${chat.unreadCount} unread` : ''}`}
-              onClick={() => {
-              // === FIX BUG 2: Optimistic Cache Update ===
-              setChats(prev => {
-                const updated = prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c);
-                writeCache(updated);
-                return updated;
-              });
-              navigate.push(`/chat/${chat.id}`);
-            }}
-              onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setChats(prev => {
-                  const updated = prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c);
-                  writeCache(updated);
-                  return updated;
-                });
-                navigate.push(`/chat/${chat.id}`);
-              }
-            }}
-              className="group relative bg-gray-900/30 hover:bg-gray-800/50 border border-gray-800/50 hover:border-gray-700 rounded-2xl p-4 transition-all duration-300 cursor-pointer active:scale-[0.98]">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <img src={getOptimizedUrl(chat.partner.avatar, 64)} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-gray-800 group-hover:border-gray-600 transition-colors" />
-                  {isUserOnline(chat.partner.id) && <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-black rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-0.5">
-                    <div className="flex items-center gap-1 min-w-0 pr-2">
-                      <h3 className="text-base font-bold text-gray-100 truncate group-hover:text-white transition-colors">{chat.partner.realName || chat.partner.anonymousId}</h3>
-                      {chat.partner.isVerified && (
-                        <BadgeCheck className="w-4 h-4 flex-shrink-0 drop-shadow-[0_0_4px_rgba(96,165,250,0.8)]" style={{ color: '#60a5fa' }} />
-                      )}
-                    </div>
-                    {chat.lastMessageTime && <span className="text-[10px] text-gray-500 font-mono whitespace-nowrap">{new Date(chat.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className={`text-sm truncate pr-4 ${chat.unreadCount > 0 ? 'text-white font-semibold' : 'text-gray-500 group-hover:text-gray-400'}`}>{chat.lastMessage}</p>
-                    {chat.unreadCount > 0 && <div className="bg-neon text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg shadow-neon/20 min-w-[20px] text-center">{chat.unreadCount}</div>}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ChatPreviewItem
+              key={chat.id}
+              chat={chat}
+              isOnline={isUserOnline(chat.partner.id)}
+              onSelect={handleChatSelect}
+            />
           ))
         )}
       </div>
