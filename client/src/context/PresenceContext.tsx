@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -155,8 +155,16 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return () => clearInterval(interval);
     }, [lastSeenMap]);
 
+    const unsubscribeFromUser = useCallback((userId: string) => {
+        const channel = subscribedChannelsRef.current.get(userId);
+        if (channel && channel !== true) {
+            supabase.removeChannel(channel);
+        }
+        subscribedChannelsRef.current.delete(userId);
+    }, []);
+
     // Subscribe to specific users' presence
-    const subscribeToUser = (userId: string) => {
+    const subscribeToUser = useCallback((userId: string) => {
         if (!supabase || subscribedChannelsRef.current.has(userId)) return;
 
         // Immediately mark as tracked to prevent concurrent calls
@@ -170,8 +178,16 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             .single()
             .then(({ data, error }) => {
                 if (data && !error) {
-                    setOnlineUsers(prev => new Map(prev).set(userId, data.is_online));
-                    setLastSeenMap(prev => new Map(prev).set(userId, new Date(data.last_seen)));
+                    setOnlineUsers(prev => {
+                        const m = new Map(prev);
+                        m.set(userId, data.is_online);
+                        return m;
+                    });
+                    setLastSeenMap(prev => {
+                        const m = new Map(prev);
+                        m.set(userId, new Date(data.last_seen));
+                        return m;
+                    });
                 }
             });
 
@@ -189,8 +205,16 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 (payload) => {
                     const data = payload.new as any;
                     if (data) {
-                        setOnlineUsers(prev => new Map(prev).set(userId, data.is_online));
-                        setLastSeenMap(prev => new Map(prev).set(userId, new Date(data.last_seen)));
+                        setOnlineUsers(prev => {
+                            const m = new Map(prev);
+                            m.set(userId, data.is_online);
+                            return m;
+                        });
+                        setLastSeenMap(prev => {
+                            const m = new Map(prev);
+                            m.set(userId, new Date(data.last_seen));
+                            return m;
+                        });
                     }
                 }
             )
@@ -202,23 +226,15 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return () => {
             unsubscribeFromUser(userId);
         };
-    };
+    }, [unsubscribeFromUser]);
 
-    const unsubscribeFromUser = (userId: string) => {
-        const channel = subscribedChannelsRef.current.get(userId);
-        if (channel && channel !== true) {
-            supabase.removeChannel(channel);
-        }
-        subscribedChannelsRef.current.delete(userId);
-    };
-
-    const isUserOnline = (userId: string): boolean => {
+    const isUserOnline = useCallback((userId: string): boolean => {
         return onlineUsers.get(userId) || false;
-    };
+    }, [onlineUsers]);
 
-    const getLastSeen = (userId: string): Date | null => {
+    const getLastSeen = useCallback((userId: string): Date | null => {
         return lastSeenMap.get(userId) || null;
-    };
+    }, [lastSeenMap]);
 
     return (
         <PresenceContext.Provider

@@ -6,6 +6,7 @@ import { useRouter as useNavigate } from 'next/navigation';
 import { Heart, X, MapPin, GraduationCap, Ghost, BadgeCheck, School, Globe, Bell } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { analytics } from '../utils/analytics';
+import { getOptimizedUrl } from '../utils/image';
 
 import { getRandomQuote } from '../data/loadingQuotes';
 import { safeSetItem } from '../utils/storage';
@@ -619,12 +620,12 @@ export const Home: React.FC = () => {
                             {/* Background card stack */}
                             {thirdProfile && (
                                 <div className="absolute top-6 bottom-20 inset-x-0 bg-gray-900/50 rounded-[28px] transform scale-[0.88] translate-y-6 opacity-30 border border-gray-800/50 pointer-events-none overflow-hidden blur-[1px]">
-                                    <img src={thirdProfile.avatar} className="w-full h-full object-cover opacity-40 grayscale" alt="" aria-hidden="true" />
+                                    <img src={getOptimizedUrl(thirdProfile.avatar, 384)} className="w-full h-full object-cover opacity-40 grayscale" alt="" aria-hidden="true" />
                                 </div>
                             )}
                             {nextProfile && (
                                 <div className="absolute top-3 bottom-16 inset-x-0 bg-gray-900/80 rounded-[28px] transform scale-[0.94] translate-y-3 opacity-50 border border-gray-800 pointer-events-none overflow-hidden">
-                                    <img src={nextProfile.avatar} className="w-full h-full object-cover opacity-60 grayscale-[50%]" alt="" aria-hidden="true" />
+                                    <img src={getOptimizedUrl(nextProfile.avatar, 384)} className="w-full h-full object-cover opacity-60 grayscale-[50%]" alt="" aria-hidden="true" />
                                 </div>
                             )}
 
@@ -660,7 +661,7 @@ export const Home: React.FC = () => {
 
                                 {/* Image */}
                                 <img
-                                    src={currentProfile.avatar}
+                                    src={getOptimizedUrl(currentProfile.avatar, 384)}
                                     alt="Profile"
                                     className="w-full h-full object-cover pointer-events-none"
                                     draggable={false}
