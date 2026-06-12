@@ -36,6 +36,7 @@ interface Glimpse {
 export const Sparx: React.FC = () => {
   const { currentUser } = useAuth();
   const router = useRouter();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Feeds and states
   const [feedMode, setFeedMode] = useState<'campus' | 'global'>('campus');
@@ -223,6 +224,9 @@ export const Sparx: React.FC = () => {
   // Re-fetch on feedMode / user change
   useEffect(() => {
     fetchGlimpses();
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
   }, [feedMode, currentUser]);
 
   // Real-time listener for glimpses and reactions
@@ -352,6 +356,9 @@ export const Sparx: React.FC = () => {
           onClick={() => {
             fetchGlimpses(true);
             setNewGlimpsesAlert(false);
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = 0;
+            }
           }}
           className="absolute top-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 bg-neon hover:bg-neon/90 text-white text-xs font-bold rounded-full shadow-[0_0_25px_rgba(255,0,127,0.5)] border border-white/20 animate-bounce flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
         >
@@ -405,6 +412,7 @@ export const Sparx: React.FC = () => {
       ) : (
         /* Vertical Snap scrolling container */
         <div 
+          ref={scrollContainerRef}
           onScroll={handleScroll}
           className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth scrollbar-none"
         >
