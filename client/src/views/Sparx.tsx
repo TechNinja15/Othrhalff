@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { GlimpseCard } from '../components/GlimpseCard';
 import { GlimpseUploadModal } from '../components/GlimpseUploadModal';
-import { Plus, Tv, Music, X, ChevronUp, Loader2, AlertCircle, RefreshCw, Camera } from 'lucide-react';
+import { Plus, Tv, Music, X, ChevronUp, Loader2, AlertCircle, RefreshCw, Camera, Ghost } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthPromptModal } from '../components/AuthPromptModal';
 import { LoadingState } from '../components/LoadingState';
@@ -227,26 +227,29 @@ export const Sparx: React.FC = () => {
           </button>
         </div>
       ) : glimpses.length === 0 ? (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-black p-8 text-center relative z-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,0,127,0.08)_0%,transparent_60%)] pointer-events-none" />
-          
-          <div className="p-6 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md max-w-md shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-300">
-            <h3 className="text-xl font-extrabold text-white mb-2">
-              No Glimpses Yet
-            </h3>
-            <p className="text-sm text-gray-500 leading-relaxed mb-6">
-              {feedMode === 'campus'
-                ? 'Be the first to share a highlight of your day on campus! Photos vanish in 24 hours.'
-                : 'Nobody has shared global glimpses in the last 24 hours. Jump in first!'}
-            </p>
-            <button
-              onClick={handleOpenUpload}
-              className="w-full py-3 bg-neon hover:bg-neon/90 text-white font-bold rounded-2xl text-sm shadow-[0_0_15px_rgba(255,0,127,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-            >
-              <Camera className="w-4 h-4" />
-              <span>Share a Glimpse</span>
-            </button>
+        <div className="w-full h-full flex flex-col items-center justify-center bg-black p-8 text-center relative z-10 animate-fade-in">
+          {/* Mascot Circle */}
+          <div className="w-20 h-20 bg-gradient-to-br from-gray-900 to-gray-800 rounded-full flex items-center justify-center mb-6 border border-gray-700 mx-auto shadow-2xl">
+            <Ghost className="w-10 h-10 text-gray-600" />
           </div>
+
+          <h2 className="text-xl font-black text-white mb-3 uppercase tracking-tight">
+            No Glimpses Yet
+          </h2>
+          
+          <p className="text-gray-500 text-sm max-w-xs mb-8 mx-auto leading-relaxed">
+            {feedMode === 'campus'
+              ? 'Be the first to share a highlight of your day on campus!'
+              : 'Nobody has shared global glimpses in the last 24 hours.'}
+          </p>
+
+          <button
+            onClick={handleOpenUpload}
+            className="px-6 py-3 bg-gradient-to-r from-neon to-purple-600 text-white rounded-full font-bold text-sm transition-all hover:shadow-[0_0_30px_rgba(255,0,127,0.4)] hover:scale-105 active:scale-95 flex items-center justify-center gap-2 mx-auto"
+          >
+            <Camera className="w-4 h-4" />
+            <span>Share a Glimpse</span>
+          </button>
         </div>
       ) : (
         /* Vertical Snap scrolling container */
