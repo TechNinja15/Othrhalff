@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { GlimpseCard } from '../components/GlimpseCard';
 import { GlimpseUploadModal } from '../components/GlimpseUploadModal';
-import { Plus, Tv, Music, X, ChevronUp, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Plus, Tv, Music, X, ChevronUp, Loader2, AlertCircle, RefreshCw, Camera } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthPromptModal } from '../components/AuthPromptModal';
 
@@ -241,9 +241,10 @@ export const Sparx: React.FC = () => {
             </p>
             <button
               onClick={handleOpenUpload}
-              className="w-full py-3 bg-neon hover:bg-neon/90 text-white font-bold rounded-2xl text-sm shadow-[0_0_15px_rgba(255,0,127,0.4)] transition-all active:scale-[0.98]"
+              className="w-full py-3 bg-neon hover:bg-neon/90 text-white font-bold rounded-2xl text-sm shadow-[0_0_15px_rgba(255,0,127,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
-              Share a Glimpse 📸
+              <Camera className="w-4 h-4" />
+              <span>Share a Glimpse</span>
             </button>
           </div>
         </div>

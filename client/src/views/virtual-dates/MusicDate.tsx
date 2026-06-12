@@ -368,7 +368,7 @@ export const MusicDate = () => {
         conn.on('data', (data: any) => handleDataMessage(data, conn.peer));
         conn.on('close', () => {
             const leaveName = peerNamesRef.current[conn.peer] || conn.peer.substring(0, 5);
-            setMessages(prev => [...prev, { user: 'System', text: `👋 ${leaveName} left the jam` }]);
+            setMessages(prev => [...prev, { user: 'System', text: `${leaveName} left the jam` }]);
             setPeers(prev => prev.filter(p => p.peerId !== conn.peer));
             delete connections.current[conn.peer];
         });
@@ -377,7 +377,7 @@ export const MusicDate = () => {
     const handleDataMessage = (data: any, senderId: string) => {
         if (data.type === 'IDENTITY') {
             setPeerNames(prev => ({ ...prev, [senderId]: data.payload.name }));
-            setMessages(prev => [...prev, { user: 'System', text: `🎵 ${data.payload.name} joined the jam` }]);
+            setMessages(prev => [...prev, { user: 'System', text: `${data.payload.name} joined the jam` }]);
         } else if (data.type === 'CHAT') {
             const senderName = peerNames[senderId] || senderId.substring(0, 5);
             setMessages(prev => [...prev, { user: senderName, text: data.text }]);
@@ -936,8 +936,9 @@ export const MusicDate = () => {
                                                 className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white text-sm font-medium transition-colors flex items-center justify-between group border border-transparent hover:border-violet-500/20"
                                             >
                                                 <span>{match.partnerName}</span>
-                                                <span className="text-[10px] uppercase text-violet-400 group-hover:text-violet-300 font-mono bg-violet-500/10 px-2.5 py-1 rounded-md border border-violet-500/20">
-                                                    Invite & Start 🎵
+                                                <span className="text-[10px] uppercase text-violet-400 group-hover:text-violet-300 font-mono bg-violet-500/10 px-2.5 py-1 rounded-md border border-violet-500/20 flex items-center gap-1">
+                                                    <span>Invite & Start</span>
+                                                    <Music className="w-3 h-3" />
                                                 </span>
                                             </button>
                                         ))}
@@ -973,7 +974,7 @@ export const MusicDate = () => {
                         {isCreate ? (
                             <div>
                                 <label className="block text-sm font-medium text-white/60 mb-2">Room Name</label>
-                                <input type="text" value={roomName} onChange={e => setRoomName(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleCreateRoom()} placeholder="e.g., Midnight Vibes 🌙" maxLength={30} disabled={isConnecting} className="w-full bg-[#0a001a]/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-white/30 focus:border-violet-500/50 focus:outline-none transition-all disabled:opacity-50 text-base shadow-inner backdrop-blur-md" autoFocus />
+                                <input type="text" value={roomName} onChange={e => setRoomName(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleCreateRoom()} placeholder="e.g., Midnight Vibes" maxLength={30} disabled={isConnecting} className="w-full bg-[#0a001a]/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-white/30 focus:border-violet-500/50 focus:outline-none transition-all disabled:opacity-50 text-base shadow-inner backdrop-blur-md" autoFocus />
                                 <div className="text-xs text-white/30 mt-2 text-right">{roomName.length}/30</div>
                             </div>
                         ) : (
@@ -1147,7 +1148,7 @@ export const MusicDate = () => {
                                 </div>
                             </div>
                             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-3 tracking-tight">What do you want to listen to?</h1>
-                            <p className="text-gray-400 text-sm md:text-base mb-8">Search for a song to start the jam 🎵</p>
+                            <p className="text-gray-400 text-sm md:text-base mb-8">Search for a song to start the jam</p>
 
                             {/* Center Search Bar */}
                             <div className="w-full max-w-md relative mb-6">
