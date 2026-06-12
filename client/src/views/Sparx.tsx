@@ -6,6 +6,7 @@ import { GlimpseUploadModal } from '../components/GlimpseUploadModal';
 import { Plus, Tv, Music, X, ChevronUp, Loader2, AlertCircle, RefreshCw, Camera } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AuthPromptModal } from '../components/AuthPromptModal';
+import { LoadingState } from '../components/LoadingState';
 
 interface GlimpseProfile {
   id: string;
@@ -210,9 +211,8 @@ export const Sparx: React.FC = () => {
 
       {/* Main Content Feed Area */}
       {isLoading ? (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-black gap-3 text-gray-500">
-          <Loader2 className="w-8 h-8 text-neon animate-spin" />
-          <span className="text-xs font-bold uppercase tracking-widest font-mono">Scanning campus moments...</span>
+        <div className="w-full h-full bg-black relative">
+          <LoadingState message="Scanning campus moments..." />
         </div>
       ) : error ? (
         <div className="w-full h-full flex flex-col items-center justify-center bg-black p-6 gap-4 text-center">
