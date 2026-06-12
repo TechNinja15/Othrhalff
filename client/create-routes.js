@@ -8,9 +8,9 @@ const routes = {
   'matches': 'Matches',
   'chat/[id]': 'Chat',
   'notifications': 'Notifications',
-  'virtual-date': 'VirtualDate',
-  'virtual-date/cinema': 'virtual-dates/CinemaDate',
-  'virtual-date/music': 'virtual-dates/MusicDate',
+  'sparx': 'Sparx',
+  'sparx/cinema': 'virtual-dates/CinemaDate',
+  'sparx/music': 'virtual-dates/MusicDate',
   'profile': 'Profile',
   'profile/[id]': 'Profile',
   'developers': 'Developers',
@@ -47,7 +47,12 @@ for (const [routePath, componentPath] of Object.entries(routes)) {
 
   let relativeDots = '../'.repeat(routePath.split('/').length);
 
-  const content = `"use client";\n\nimport { ${exportName} } from '${relativeDots}src/views/${componentPath}';\n\nexport default function Page() {\n  return <${exportName} />;\n}\n`;
+  let content;
+  if (routePath === 'sparx/cinema' || routePath === 'sparx/music') {
+    content = `"use client";\n\nimport dynamic from 'next/dynamic';\n\nconst ${exportName} = dynamic(\n  () => import('${relativeDots}src/views/${componentPath}').then(mod => mod.${exportName}),\n  { ssr: false }\n);\n\nexport default function Page() {\n  return <${exportName} />;\n}\n`;
+  } else {
+    content = `"use client";\n\nimport { ${exportName} } from '${relativeDots}src/views/${componentPath}';\n\nexport default function Page() {\n  return <${exportName} />;\n}\n`;
+  }
 
   fs.writeFileSync(path.join(dir, 'page.tsx'), content);
 }
