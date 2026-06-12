@@ -43,6 +43,14 @@ export const Sparx: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination and real-time alerts
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [newGlimpsesAlert, setNewGlimpsesAlert] = useState(false);
+
+  // Page size limit
+  const PAGE_LIMIT = 5;
+
   // Modals and overlays
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLobbyOpen, setIsLobbyOpen] = useState(false);
@@ -71,11 +79,13 @@ export const Sparx: React.FC = () => {
     setShowTutorial(false);
   };
 
-  // Main fetch function
+  // Main fetch function (first load or hard refresh)
   const fetchGlimpses = async (showLoading = true) => {
     if (!supabase) return;
     if (showLoading) setIsLoading(true);
     setError(null);
+    setHasMore(true);
+    setNewGlimpsesAlert(false);
 
     try {
       const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -98,6 +108,7 @@ export const Sparx: React.FC = () => {
             university
           ),
           glimpse_reactions (
+            id,
             reaction_type,
             user_id
           )
@@ -111,7 +122,9 @@ export const Sparx: React.FC = () => {
         query = query.not('university', 'ilike', `${targetUniv}%`);
       }
 
-      query = query.order('created_at', { ascending: false });
+      query = query
+        .order('created_at', { ascending: false })
+        .range(0, PAGE_LIMIT - 1);
 
       const { data, error: queryError } = await query;
 
@@ -119,12 +132,91 @@ export const Sparx: React.FC = () => {
         throw queryError;
       }
 
-      setGlimpses((data as any) || []);
+      const fetchedData = (data as any) || [];
+      setGlimpses(fetchedData);
+      setHasMore(fetchedData.length === PAGE_LIMIT);
     } catch (err: any) {
       console.error('Error fetching glimpses:', err);
       setError(err.message || 'Failed to load glimpses');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fetch next page of glimpses
+  const fetchNextPage = async () => {
+    if (!supabase || isLoading || isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+
+    try {
+      const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const currentOffset = glimpses.length;
+
+      let query = supabase
+        .from('glimpses')
+        .select(`
+          id,
+          user_id,
+          image_path,
+          caption,
+          university,
+          created_at,
+          profiles:user_id (
+            id,
+            real_name,
+            anonymous_id,
+            avatar,
+            is_verified,
+            university
+          ),
+          glimpse_reactions (
+            id,
+            reaction_type,
+            user_id
+          )
+        `)
+        .gt('created_at', last24Hours);
+
+      const targetUniv = currentUser?.university?.trim();
+      if (feedMode === 'campus' && targetUniv) {
+        query = query.ilike('university', `${targetUniv}%`);
+      } else if (feedMode === 'global' && targetUniv) {
+        query = query.not('university', 'ilike', `${targetUniv}%`);
+      }
+
+      query = query
+        .order('created_at', { ascending: false })
+        .range(currentOffset, currentOffset + PAGE_LIMIT - 1);
+
+      const { data, error: queryError } = await query;
+
+      if (queryError) {
+        throw queryError;
+      }
+
+      const fetchedData = (data as any) || [];
+      if (fetchedData.length > 0) {
+        setGlimpses(prev => {
+          const prevIds = new Set(prev.map(g => g.id));
+          const filtered = fetchedData.filter((g: any) => !prevIds.has(g.id));
+          return [...prev, ...filtered];
+        });
+      }
+      
+      setHasMore(fetchedData.length === PAGE_LIMIT);
+    } catch (err: any) {
+      console.error('Error fetching next page of glimpses:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Handle container scroll to trigger pagination
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    // Load next page when user is close to the bottom of current feed cards (within 1.5 screen heights)
+    if (scrollHeight - scrollTop - clientHeight < clientHeight * 1.5) {
+      fetchNextPage();
     }
   };
 
@@ -138,11 +230,56 @@ export const Sparx: React.FC = () => {
     if (!supabase) return;
 
     const glimpseChannel = supabase.channel('glimpses-realtime-feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'glimpses' }, () => {
-        fetchGlimpses(false);
+      // Listen for new glimpses
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'glimpses' }, (payload) => {
+        const newGlimpse = payload.new;
+        
+        // If it's the current user's own upload, ignore
+        if (newGlimpse.user_id === currentUser?.id) return;
+        
+        // Check if the new glimpse matches the university filter criteria
+        const targetUniv = currentUser?.university?.trim();
+        const glimpseUniv = newGlimpse.university?.trim();
+        const matchesCampus = targetUniv && glimpseUniv && glimpseUniv.toLowerCase().startsWith(targetUniv.toLowerCase());
+        
+        if (feedMode === 'campus') {
+          if (matchesCampus) setNewGlimpsesAlert(true);
+        } else {
+          if (!matchesCampus) setNewGlimpsesAlert(true);
+        }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'glimpse_reactions' }, () => {
-        fetchGlimpses(false);
+      // Listen for updates on reactions in memory to avoid full-feed network fetches
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'glimpse_reactions' }, (payload) => {
+        const newReaction = payload.new;
+        setGlimpses(prev => prev.map(g => {
+          if (g.id === newReaction.glimpse_id) {
+            const exists = g.glimpse_reactions?.some((r: any) => r.user_id === newReaction.user_id && r.reaction_type === newReaction.reaction_type);
+            if (!exists) {
+              return {
+                ...g,
+                glimpse_reactions: [...(g.glimpse_reactions || []), { id: newReaction.id, reaction_type: newReaction.reaction_type, user_id: newReaction.user_id }]
+              };
+            }
+          }
+          return g;
+        }));
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'glimpse_reactions' }, (payload) => {
+        const oldReaction = payload.old;
+        if (oldReaction && oldReaction.glimpse_id) {
+          setGlimpses(prev => prev.map(g => {
+            if (g.id === oldReaction.glimpse_id) {
+              return {
+                ...g,
+                glimpse_reactions: (g.glimpse_reactions || []).filter((r: any) => {
+                  if (oldReaction.id) return r.id !== oldReaction.id;
+                  return !(r.user_id === oldReaction.user_id && r.reaction_type === oldReaction.reaction_type);
+                })
+              };
+            }
+            return g;
+          }));
+        }
       })
       .subscribe();
 
@@ -209,6 +346,20 @@ export const Sparx: React.FC = () => {
         </div>
       </header>
 
+      {/* Floating New Glimpses Alert Pill */}
+      {newGlimpsesAlert && (
+        <button
+          onClick={() => {
+            fetchGlimpses(true);
+            setNewGlimpsesAlert(false);
+          }}
+          className="absolute top-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 bg-neon hover:bg-neon/90 text-white text-xs font-bold rounded-full shadow-[0_0_25px_rgba(255,0,127,0.5)] border border-white/20 animate-bounce flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+        >
+          <Camera className="w-4 h-4" />
+          <span>New Glimpses available! Tap to refresh</span>
+        </button>
+      )}
+
       {/* Main Content Feed Area */}
       {isLoading ? (
         <div className="w-full h-full bg-black relative">
@@ -253,7 +404,10 @@ export const Sparx: React.FC = () => {
         </div>
       ) : (
         /* Vertical Snap scrolling container */
-        <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth scrollbar-none">
+        <div 
+          onScroll={handleScroll}
+          className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth scrollbar-none"
+        >
           {glimpses.map((glimpse) => (
             <div key={glimpse.id} className="w-full h-full snap-start snap-always relative">
               <GlimpseCard
@@ -264,6 +418,12 @@ export const Sparx: React.FC = () => {
               />
             </div>
           ))}
+          {isLoadingMore && (
+            <div className="w-full h-full snap-start snap-always relative flex flex-col items-center justify-center bg-black gap-3 text-gray-500">
+              <Loader2 className="w-8 h-8 text-neon animate-spin" />
+              <span className="text-[10px] font-bold uppercase tracking-widest font-mono">Loading more moments...</span>
+            </div>
+          )}
         </div>
       )}
 

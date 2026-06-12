@@ -54,3 +54,43 @@ DROP POLICY IF EXISTS "Users can insert reactions" ON public.glimpse_reactions;
 CREATE POLICY "Users can insert reactions" 
   ON public.glimpse_reactions FOR INSERT 
   WITH CHECK (auth.uid() = user_id);
+
+
+-- ==========================================
+-- PERFORMANCE INDEXES
+-- ==========================================
+
+-- Indexes for feed filtering, sorting, and joins
+CREATE INDEX IF NOT EXISTS glimpses_created_at_idx ON public.glimpses (created_at DESC);
+CREATE INDEX IF NOT EXISTS glimpses_university_idx ON public.glimpses (university);
+CREATE INDEX IF NOT EXISTS glimpses_user_id_idx ON public.glimpses (user_id);
+
+CREATE INDEX IF NOT EXISTS glimpse_reactions_glimpse_id_idx ON public.glimpse_reactions (glimpse_id);
+CREATE INDEX IF NOT EXISTS glimpse_reactions_user_id_idx ON public.glimpse_reactions (user_id);
+
+
+-- ==========================================
+-- STORAGE BUCKET CREATION & POLICIES
+-- ==========================================
+
+-- Create storage bucket for glimpses if not exists
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('glimpses', 'glimpses', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS Policies for glimpses bucket inside storage.objects table
+DROP POLICY IF EXISTS "Allow public read access to glimpses bucket" ON storage.objects;
+CREATE POLICY "Allow public read access to glimpses bucket"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'glimpses');
+
+DROP POLICY IF EXISTS "Allow authenticated upload access to glimpses bucket" ON storage.objects;
+CREATE POLICY "Allow authenticated upload access to glimpses bucket"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'glimpses' AND auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Allow user deletion from glimpses bucket" ON storage.objects;
+CREATE POLICY "Allow user deletion from glimpses bucket"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'glimpses' AND auth.role() = 'authenticated');
+
