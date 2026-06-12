@@ -4,6 +4,7 @@ import { useRouter as useNavigate } from 'next/navigation';
 import Peer, { DataConnection } from 'peerjs';
 import { useAuth } from '../../context/AuthContext';
 import { analytics } from '../../utils/analytics';
+import { supabase } from '../../lib/supabase';
 
 type DateMode = 'landing' | 'create_room' | 'join_room' | 'room';
 type LyricLine = { time: number; text: string };
@@ -121,6 +122,87 @@ export const MusicDate = () => {
     const { currentUser } = useAuth();
     const displayName = currentUser?.realName || currentUser?.anonymousId || 'Anonymous';
 
+    const [matches, setMatches] = useState<{ id: string; partnerName: string }[]>([]);
+    const [showInviteMenu, setShowInviteMenu] = useState(false);
+
+    useEffect(() => {
+        const fetchMatches = async () => {
+            if (!currentUser || !supabase) return;
+            try {
+                const { data: matchesData, error: matchesError } = await supabase
+                    .from('matches')
+                    .select('id, user_a, user_b')
+                    .or(`user_a.eq.${currentUser.id},user_b.eq.${currentUser.id}`);
+                
+                if (matchesError) throw matchesError;
+                if (!matchesData || matchesData.length === 0) return;
+
+                const partnerIds = matchesData.map(m => m.user_a === currentUser.id ? m.user_b : m.user_a);
+
+                const { data: profiles, error: profilesError } = await supabase
+                    .from('profiles')
+                    .select('id, anonymous_id, real_name')
+                    .in('id', partnerIds);
+
+                if (profilesError) throw profilesError;
+
+                const mappedMatches = matchesData.map(m => {
+                    const partnerId = m.user_a === currentUser.id ? m.user_b : m.user_a;
+                    const profile = profiles?.find(p => p.id === partnerId);
+                    return {
+                        id: m.id,
+                        partnerName: profile?.real_name || profile?.anonymous_id || 'Anonymous Match'
+                    };
+                });
+                setMatches(mappedMatches);
+            } catch (err) {
+                console.error('Error fetching matches for invite:', err);
+            }
+        };
+
+        fetchMatches();
+    }, [currentUser]);
+
+    const handleInviteMatch = async (match: { id: string; partnerName: string }) => {
+        setIsConnecting(true);
+        setError(null);
+        try {
+            const roomUuid = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' 
+                ? crypto.randomUUID() 
+                : Math.random().toString(36).substring(2, 15) + '-' + Math.random().toString(36).substring(2, 15);
+            
+            const inviteText = `[SYSTEM] [INVITE:v1] ${JSON.stringify({
+                action: 'join_room',
+                type: 'music',
+                room: roomUuid,
+                url: `/sparx/music?room=${roomUuid}`,
+                message: 'Music Jam Session'
+            })}`;
+
+            const { error: insertError } = await supabase
+                .from('messages')
+                .insert({
+                    match_id: match.id,
+                    sender_id: currentUser?.id,
+                    text: inviteText
+                });
+
+            if (insertError) throw insertError;
+
+            setRoomCode(roomUuid);
+            setRoomName(`${match.partnerName}'s Jam`);
+            setIsHost(true);
+            setMode('room');
+            setShowInviteMenu(false);
+        } catch (err: any) {
+            console.error('Error inviting match:', err);
+            setError(`Failed to send invite: ${err.message || err}`);
+            setTimeout(() => setError(null), 5000);
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
     // Chat State
     const [showChat, setShowChat] = useState(false);
     const [messages, setMessages] = useState<{ user: string, text: string }[]>([
@@ -164,6 +246,22 @@ export const MusicDate = () => {
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [mode]);
+
+    // URL Query Sync for Sharing and Join-on-Load
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const searchParams = new URLSearchParams(window.location.search);
+            const queryRoom = searchParams.get('room');
+            if (queryRoom && mode === 'landing') {
+                setIsConnecting(true);
+                setRoomCode(queryRoom);
+                setRoomName('Joined Music Jam');
+                setIsHost(false);
+                setMode('room');
+                setError(null);
+            }
+        }
     }, [mode]);
 
     // References for callbacks
@@ -810,6 +908,44 @@ export const MusicDate = () => {
                         <h3 className="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">Join Jam</h3>
                         <p className="text-white/50 text-sm font-light">Enter a room code</p>
                     </button>
+                </div>
+
+                {/* Invite Match Section */}
+                <div className="mt-8 w-full max-w-md px-4 relative z-20">
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowInviteMenu(!showInviteMenu)}
+                            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-white/5 border border-white/10 hover:border-violet-500/50 hover:bg-white/10 rounded-2xl text-white font-medium transition-all duration-300 backdrop-blur-md shadow-lg"
+                        >
+                            <Users className="w-5 h-5 text-violet-400" />
+                            <span>Invite Active Match</span>
+                        </button>
+                        
+                        {showInviteMenu && (
+                            <div className="absolute top-[110%] left-0 right-0 mt-2 bg-[#0d071a]/95 border border-white/10 rounded-2xl shadow-2xl p-2 z-50 max-h-60 overflow-y-auto custom-scrollbar backdrop-blur-xl animate-fade-in">
+                                {matches.length === 0 ? (
+                                    <div className="text-center py-4 text-xs text-white/40">
+                                        No active matches found.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {matches.map(match => (
+                                            <button
+                                                key={match.id}
+                                                onClick={() => handleInviteMatch(match)}
+                                                className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white text-sm font-medium transition-colors flex items-center justify-between group border border-transparent hover:border-violet-500/20"
+                                            >
+                                                <span>{match.partnerName}</span>
+                                                <span className="text-[10px] uppercase text-violet-400 group-hover:text-violet-300 font-mono bg-violet-500/10 px-2.5 py-1 rounded-md border border-violet-500/20">
+                                                    Invite & Start 🎵
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         );

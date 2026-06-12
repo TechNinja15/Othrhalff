@@ -67,8 +67,9 @@ jest.mock('../../src/views/Notifications', () => ({
   Notifications: () => <div data-testid="notifications-page">Notifications</div>,
 }));
 
-jest.mock('../../src/views/VirtualDate', () => ({
-  VirtualDate: () => <div data-testid="virtual-date-page">VirtualDate</div>,
+
+jest.mock('../../src/views/Sparx', () => ({
+  Sparx: () => <div data-testid="sparx-page">Sparx</div>,
 }));
 
 jest.mock('../../src/views/virtual-dates/CinemaDate', () => ({
@@ -125,8 +126,9 @@ import HomePage from '../../app/home/page';
 import MatchesPage from '../../app/matches/page';
 import ChatPage from '../../app/chat/[id]/page';
 import NotificationsPage from '../../app/notifications/page';
-import VirtualDateCinemaPage from '../../app/virtual-date/cinema/page';
-import VirtualDateMusicPage from '../../app/virtual-date/music/page';
+import SparxPage from '../../app/sparx/page';
+import SparxCinemaPage from '../../app/sparx/cinema/page';
+import SparxMusicPage from '../../app/sparx/music/page';
 import ProfilePage from '../../app/profile/page';
 import ProfileByIdPage from '../../app/profile/[id]/page';
 import DevelopersPage from '../../app/developers/page';
@@ -222,24 +224,35 @@ describe('Notifications page (app/notifications/page.tsx)', () => {
   });
 });
 
-describe('Virtual Date Cinema page (app/virtual-date/cinema/page.tsx)', () => {
+describe('Sparx page (app/sparx/page.tsx)', () => {
   it('renders without throwing', () => {
-    expect(() => render(<VirtualDateCinemaPage />)).not.toThrow();
+    expect(() => render(<SparxPage />)).not.toThrow();
+  });
+
+  it('renders the Sparx component', () => {
+    render(<SparxPage />);
+    expect(screen.getByTestId('sparx-page')).toBeInTheDocument();
+  });
+});
+
+describe('Sparx Cinema page (app/sparx/cinema/page.tsx)', () => {
+  it('renders without throwing', () => {
+    expect(() => render(<SparxCinemaPage />)).not.toThrow();
   });
 
   it('renders the CinemaDate component', () => {
-    render(<VirtualDateCinemaPage />);
+    render(<SparxCinemaPage />);
     expect(screen.getByTestId('cinema-date-page')).toBeInTheDocument();
   });
 });
 
-describe('Virtual Date Music page (app/virtual-date/music/page.tsx)', () => {
+describe('Sparx Music page (app/sparx/music/page.tsx)', () => {
   it('renders without throwing', () => {
-    expect(() => render(<VirtualDateMusicPage />)).not.toThrow();
+    expect(() => render(<SparxMusicPage />)).not.toThrow();
   });
 
   it('renders the MusicDate component', () => {
-    render(<VirtualDateMusicPage />);
+    render(<SparxMusicPage />);
     expect(screen.getByTestId('music-date-page')).toBeInTheDocument();
   });
 });

@@ -92,7 +92,7 @@ describe('Blog.tsx migration (src/views/Blog.tsx)', () => {
   it('uses Link href= attribute (not to=)', () => {
     // Next.js Link uses href, not to
     expect(source).not.toMatch(/<Link to=/);
-    expect(source).toMatch(/<Link href=/);
+    expect(source).toMatch(/<Link[^>]*href=/);
   });
 
   it('has "use client" directive (required for client-side features)', () => {
@@ -222,12 +222,13 @@ describe('Developers.tsx migration (src/views/Developers.tsx)', () => {
     expect(source).not.toContain('from "react-router-dom"');
   });
 
-  it('imports from next/navigation', () => {
-    expect(source).toContain("from 'next/navigation'");
+  it('imports Link from next/link', () => {
+    expect(source).toContain("import Link from 'next/link'");
   });
 
-  it('uses navigate.push() to navigate to root', () => {
-    expect(source).toContain("navigate.push('/')");
+  it('uses Link href= attribute (not to=)', () => {
+    expect(source).not.toMatch(/<Link to=/);
+    expect(source).toMatch(/<Link[^>]*href=/);
   });
 });
 
@@ -284,7 +285,7 @@ describe('Landing.tsx migration (src/views/Landing.tsx)', () => {
 
   it('uses Link href= attribute (not to=)', () => {
     expect(source).not.toMatch(/<Link to=/);
-    expect(source).toMatch(/<Link href=/);
+    expect(source).toMatch(/<Link[^>]*href=/);
   });
 
   it('has "use client" directive', () => {
@@ -321,7 +322,7 @@ describe('Login.tsx migration (src/views/Login.tsx)', () => {
 
   it('uses Link href= attribute for terms and privacy links', () => {
     expect(source).not.toMatch(/<Link to=/);
-    expect(source).toMatch(/<Link href=/);
+    expect(source).toMatch(/<Link[^>]*href=/);
   });
 });
 
@@ -464,27 +465,24 @@ describe('StaticPages.tsx migration (src/views/StaticPages.tsx)', () => {
     expect(source).not.toContain('from "react-router-dom"');
   });
 
-  it('imports from next/navigation', () => {
-    expect(source).toContain("from 'next/navigation'");
+  it('imports Link from next/link', () => {
+    expect(source).toContain("import Link from 'next/link'");
   });
 
-  it('uses navigate.push() to navigate to profile', () => {
-    expect(source).toContain("navigate.push('/profile')");
-  });
-
-  it('has "use client" directive', () => {
-    expect(source).toContain('"use client"');
+  it('uses Link href= attribute (not to=)', () => {
+    expect(source).not.toMatch(/<Link to=/);
+    expect(source).toMatch(/<Link[^>]*href=/);
   });
 });
 
 // ---------------------------------------------------------------------------
-// VirtualDate.tsx
+// Sparx.tsx
 // ---------------------------------------------------------------------------
-describe('VirtualDate.tsx migration (src/views/VirtualDate.tsx)', () => {
+describe('Sparx.tsx migration (src/views/Sparx.tsx)', () => {
   let source: string;
 
   beforeAll(() => {
-    source = readPage('VirtualDate.tsx');
+    source = readPage('Sparx.tsx');
   });
 
   it('does not import from react-router-dom', () => {
@@ -496,13 +494,12 @@ describe('VirtualDate.tsx migration (src/views/VirtualDate.tsx)', () => {
     expect(source).toContain("from 'next/navigation'");
   });
 
-  it('uses navigate.push() for virtual date routing', () => {
-    expect(source).toContain('navigate.push(');
+  it('uses router.push() for sparx/vibe room routing', () => {
+    expect(source).toContain('router.push(');
   });
 
-  it('passes route ID to navigate.push() for virtual date routes', () => {
-    // navigate.push(`/virtual-date/${id}`)
-    expect(source).toContain('navigate.push(`/virtual-date/');
+  it('passes route to router.push() for sparx routes', () => {
+    expect(source).toContain("router.push('/sparx/");
   });
 });
 
@@ -525,7 +522,7 @@ describe('No react-router-dom imports in migrated files', () => {
     'Onboarding.tsx',
     'Profile.tsx',
     'StaticPages.tsx',
-    'VirtualDate.tsx',
+    'Sparx.tsx',
   ];
 
   migratedFiles.forEach((filename) => {

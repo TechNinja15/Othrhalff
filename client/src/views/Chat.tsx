@@ -5,7 +5,7 @@ import { useCall } from '../context/CallContext';
 import { usePresence } from '../context/PresenceContext';
 import { MatchProfile, Message } from '../types';
 import { useToast } from '../context/ToastContext';
-import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Gamepad2, Check, CheckCheck, ArrowDown, Sparkles, Plus, Trophy } from 'lucide-react';
+import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Gamepad2, Check, CheckCheck, ArrowDown, Sparkles, Plus, Trophy, Tv, Music } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PermissionModal } from '../components/PermissionModal';
 import { blockUser, unblockUser, checkBlockStatus } from '../services/blockService';
@@ -264,6 +264,13 @@ export const Chat: React.FC = () => {
         if (!partnerId) {
           const { data: matchData, error: matchError } = await supabase.from('matches').select('user_a, user_b').eq('id', matchId).single();
           if (matchError || !matchData) { navigate.push('/matches'); return; }
+          
+          // Client-side authorization guard: check if user is actually in this match
+          if (matchData.user_a !== currentUser.id && matchData.user_b !== currentUser.id) {
+            navigate.push('/matches');
+            return;
+          }
+          
           partnerId = matchData.user_a === currentUser.id ? matchData.user_b : matchData.user_a;
 
           // If we had to fetch ID, we must fetch profile to show anything
@@ -901,6 +908,58 @@ export const Chat: React.FC = () => {
         )}
         {messages.map((msg, i) => {
           const isMe = msg.senderId === currentUser?.id;
+          if (msg.isSystem && msg.text.startsWith('[INVITE:v1]')) {
+            try {
+              const inviteData = JSON.parse(msg.text.replace('[INVITE:v1] ', ''));
+              const isCinema = inviteData.type === 'cinema';
+              const Icon = isCinema ? Tv : Music;
+              const buttonText = isCinema ? 'Join Watch Party 🎬' : 'Join Music Session 🎵';
+              const inviteTitle = isCinema ? 'Cinema Date Watch Party' : 'Music Jam Session';
+              
+              const shadowClass = isCinema 
+                ? 'shadow-[0_0_15px_rgba(244,63,94,0.15)] hover:shadow-[0_0_20px_rgba(244,63,94,0.3)] border-rose-500/30 hover:border-rose-400/60'
+                : 'shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] border-cyan-500/30 hover:border-cyan-400/60';
+              const glowBg = isCinema ? 'bg-rose-500/10' : 'bg-cyan-500/10';
+              const textClass = isCinema ? 'text-rose-400 font-mono' : 'text-cyan-400 font-mono';
+              const iconBgClass = isCinema ? 'bg-rose-500/15 border border-rose-500/20' : 'bg-cyan-500/15 border border-cyan-500/20';
+              const iconColorClass = isCinema ? 'text-rose-400' : 'text-cyan-400';
+              const btnClass = isCinema
+                ? 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 shadow-[0_0_10px_rgba(244,63,94,0.3)] hover:shadow-[0_0_15px_rgba(244,63,94,0.5)]'
+                : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-[0_0_10px_rgba(6,182,212,0.3)] hover:shadow-[0_0_15px_rgba(6,182,212,0.5)]';
+
+              return (
+                <div key={msg.id} className="flex justify-center w-full my-4">
+                  <div className={`w-full max-w-sm bg-gradient-to-br from-[#0e0717]/85 to-[#030107]/95 border rounded-2xl p-4 backdrop-blur-md relative overflow-hidden transition-all duration-300 ${shadowClass}`}>
+                    <div className={`absolute -right-8 -top-8 w-20 h-20 rounded-full blur-xl pointer-events-none ${glowBg}`} />
+                    
+                    <h4 className={`text-[10px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${textClass}`}>
+                      ✨ {inviteTitle}
+                    </h4>
+                    
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`p-2.5 rounded-xl ${iconBgClass}`}>
+                        <Icon className={`w-5 h-5 ${iconColorClass}`} />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-300">
+                          {isMe ? `You invited your partner to join a ${isCinema ? 'watch party' : 'music session'}!` : `Your partner invited you to join their ${isCinema ? 'watch party' : 'music session'}!`}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => navigate.push(inviteData.url)}
+                      className={`w-full py-2.5 px-4 text-xs font-semibold rounded-xl text-white transition-all active:scale-[0.98] duration-200 ${btnClass}`}
+                    >
+                      {buttonText}
+                    </button>
+                  </div>
+                </div>
+              );
+            } catch (e) {
+              console.error('Failed to render invitation card:', e);
+            }
+          }
           if (msg.isSystem) return <div key={msg.id} className="flex justify-center w-full my-4"><span className="text-[10px] uppercase text-gray-500 bg-gray-900/50 px-4 py-1.5 rounded-full border border-gray-800/50 flex items-center gap-2">{msg.text.replace('📞', '').trim()}</span></div>;
           
           if (msg.text.startsWith('[GAME:2TL:v1]')) {
