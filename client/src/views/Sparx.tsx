@@ -516,7 +516,7 @@ export const Sparx: React.FC = () => {
             {/* Header / Intro */}
             <div className="text-center mb-6">
               <h2 className="text-xl font-black text-white uppercase tracking-tight mb-1 flex items-center justify-center gap-2">
-                Top Glimpsers ⚡
+                Top Glimpsers
               </h2>
               <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">
                 Most glimpses shared in the last 24 hours
@@ -565,7 +565,7 @@ export const Sparx: React.FC = () => {
                   onClick={handleOpenUpload}
                   className="px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-full font-bold text-xs hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(244,63,94,0.2)]"
                 >
-                  Post to claim Rank #1 👑
+                  Post to claim Rank #1
                 </button>
               </div>
             ) : (
@@ -579,10 +579,10 @@ export const Sparx: React.FC = () => {
                       className="flex items-center justify-between p-4 bg-gray-950/40 border border-gray-900 rounded-2xl hover:border-gray-800 transition-all duration-300"
                     >
                       <div className="flex items-center gap-4 min-w-0">
-                        {/* Rank Badge / Crown */}
+                        {/* Rank Badge */}
                         <div className="w-6 flex-shrink-0 flex items-center justify-center font-bold font-mono text-sm">
                           {rank === 1 ? (
-                            <span className="text-xl animate-bounce" title="Rank 1">👑</span>
+                            <span className="text-pink-500" title="Rank 1">1</span>
                           ) : rank === 2 ? (
                             <span className="text-slate-400">2</span>
                           ) : rank === 3 ? (
@@ -752,11 +752,11 @@ export const Sparx: React.FC = () => {
                               <span className="text-gray-500">Opened</span>
                             </>
                           )}
-                          {reactionCount > 0 && (
+                           {reactionCount > 0 && (
                             <>
                               <span className="text-gray-700">•</span>
                               <span className="flex items-center gap-0.5 text-orange-500 font-bold">
-                                {reactionCount} 🔥
+                                {reactionCount} reactions
                               </span>
                             </>
                           )}

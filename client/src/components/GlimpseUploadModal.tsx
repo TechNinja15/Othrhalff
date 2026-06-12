@@ -306,17 +306,11 @@ export const GlimpseUploadModal: React.FC<GlimpseUploadModalProps> = ({
         className="relative w-full max-w-lg overflow-hidden bg-gradient-to-b from-[#0d091a]/95 to-[#04010a]/98 border border-white/10 rounded-[2.5rem] shadow-[0_0_80px_rgba(255,0,128,0.15)] flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-300"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top ambient color dots inside modal */}
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-pink-500/10 blur-[50px] pointer-events-none" />
-        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-500/10 blur-[50px] pointer-events-none" />
+        {/* Clean, dark container without large glowing ambient blur dots */}
 
         {/* Header */}
         <div className="relative flex items-center justify-between p-6 border-b border-white/5 z-10">
-          <h2 className="text-lg font-black uppercase tracking-wider text-white flex items-center gap-2.5">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-pink-500"></span>
-            </span>
+          <h2 className="text-sm font-black uppercase tracking-wider text-white">
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400">
               Share Glimpse
             </span>
@@ -379,8 +373,8 @@ export const GlimpseUploadModal: React.FC<GlimpseUploadModalProps> = ({
           ) : (
             /* Premium Live Mock-Feed Card Preview */
             <div className="flex flex-col items-center space-y-2">
-              <span className="text-xs uppercase tracking-widest text-gray-500 font-mono flex items-center gap-1.5 animate-pulse">
-                <Sparkles className="w-3.5 h-3.5 text-pink-500" /> Tap Photo to add Caption • Drag to position ↕️
+              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-mono flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-pink-500" /> Tap photo to type caption • Drag vertically to position
               </span>
               
               <div 
