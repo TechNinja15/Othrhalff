@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactPlayer from 'react-player';
-import { ArrowLeft, Link as LinkIcon, AlertCircle, Monitor, FolderOpen, Youtube, X, Hash, Users, Copy, PlusCircle, LogIn, LogOut, MonitorPlay, Home, Gamepad, Settings as SettingsIcon, Mic, MicOff, Video, VideoOff, MonitorUp, Send, MessageSquare, Maximize, Minimize, Sparkles } from 'lucide-react';
+import { ArrowLeft, Link as LinkIcon, AlertCircle, Monitor, FolderOpen, Youtube, X, Hash, Users, Copy, PlusCircle, LogIn, LogOut, MonitorPlay, Home, Gamepad, Settings as SettingsIcon, Mic, MicOff, Video, VideoOff, MonitorUp, Send, MessageSquare, Maximize, Minimize, Sparkles, Tv, Film } from 'lucide-react';
 import { useRouter as useNavigate, usePathname as useLocation } from 'next/navigation';
 import Peer, { DataConnection } from 'peerjs';
 import { useAuth } from '../../context/AuthContext';
@@ -705,7 +705,7 @@ export const CinemaDate: React.FC = () => {
 
         conn.on('close', () => {
             const leaveName = peerNamesRef.current[conn.peer] || conn.peer.substring(0, 5);
-            setMessages(prev => [...prev, { user: 'System', text: `👋 ${leaveName} left the room` }]);
+            setMessages(prev => [...prev, { user: 'System', text: `${leaveName} left the room` }]);
             removePeer(conn.peer);
             delete connections.current[conn.peer];
         });
@@ -716,7 +716,7 @@ export const CinemaDate: React.FC = () => {
             const { name } = data.payload;
             console.log(`Received identity from ${senderId}: ${name}`);
             setPeerNames(prev => ({ ...prev, [senderId]: name }));
-            setMessages(prev => [...prev, { user: 'System', text: `🎬 ${name} joined the room` }]);
+            setMessages(prev => [...prev, { user: 'System', text: `${name} joined the room` }]);
             return;
         }
 
@@ -1325,8 +1325,9 @@ export const CinemaDate: React.FC = () => {
                                             className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/5 text-gray-200 hover:text-white text-sm font-medium transition-colors flex items-center justify-between group border border-transparent hover:border-pink-500/20"
                                         >
                                             <span>{match.partnerName}</span>
-                                            <span className="text-[10px] uppercase text-pink-400 group-hover:text-pink-300 font-mono bg-pink-500/10 px-2.5 py-1 rounded-md border border-pink-500/20">
-                                                Invite & Start 🎬
+                                            <span className="text-[10px] uppercase text-pink-400 group-hover:text-pink-300 font-mono bg-pink-500/10 px-2.5 py-1 rounded-md border border-pink-500/20 flex items-center gap-1">
+                                                <span>Invite & Start</span>
+                                                <Film className="w-3 h-3" />
                                             </span>
                                         </button>
                                     ))}
@@ -1367,7 +1368,7 @@ export const CinemaDate: React.FC = () => {
                             value={roomName}
                             onChange={(e) => setRoomName(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleCreateRoom()}
-                            placeholder="e.g., Movie Night 🍿"
+                            placeholder="e.g., Movie Night"
                             maxLength={30}
                             disabled={isConnecting}
                             className="w-full bg-[#0a001a]/50 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-white/30 focus:border-pink-500/50 focus:outline-none transition-all disabled:opacity-50 text-base shadow-inner backdrop-blur-md"

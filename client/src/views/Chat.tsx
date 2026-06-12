@@ -5,7 +5,7 @@ import { useCall } from '../context/CallContext';
 import { usePresence } from '../context/PresenceContext';
 import { MatchProfile, Message } from '../types';
 import { useToast } from '../context/ToastContext';
-import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Gamepad2, Check, CheckCheck, ArrowDown, Sparkles, Plus, Trophy, Tv, Music } from 'lucide-react';
+import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Gamepad2, Check, CheckCheck, ArrowDown, Sparkles, Plus, Trophy, Tv, Music, Lightbulb, HelpCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PermissionModal } from '../components/PermissionModal';
 import { blockUser, unblockUser, checkBlockStatus } from '../services/blockService';
@@ -902,7 +902,10 @@ export const Chat: React.FC = () => {
             <Ghost className="w-10 h-10 text-gray-600 mb-3" />
             <p className="text-sm text-gray-300 font-medium">No messages yet.</p>
             <div className="mt-3 p-3 bg-purple-950/10 border border-purple-500/10 rounded-2xl max-w-xs text-[11px] text-gray-400 leading-relaxed backdrop-blur-sm">
-              <span className="text-purple-400 font-bold">💡 Icebreaker Hint:</span> Tap the <Gamepad2 className="w-3.5 h-3.5 inline mx-0.5 text-neon" /> icon below to play <span className="text-white font-semibold">2 Truths & a Lie</span> to kickstart your chat!
+              <span className="text-purple-400 font-bold flex items-center gap-1 inline-flex">
+                <Lightbulb className="w-3.5 h-3.5 text-purple-400" />
+                <span>Icebreaker Hint:</span>
+              </span> Tap the <Gamepad2 className="w-3.5 h-3.5 inline mx-0.5 text-neon" /> icon below to play <span className="text-white font-semibold">2 Truths & a Lie</span> to kickstart your chat!
             </div>
           </div>
         )}
@@ -913,7 +916,7 @@ export const Chat: React.FC = () => {
               const inviteData = JSON.parse(msg.text.replace('[INVITE:v1] ', ''));
               const isCinema = inviteData.type === 'cinema';
               const Icon = isCinema ? Tv : Music;
-              const buttonText = isCinema ? 'Join Watch Party 🎬' : 'Join Music Session 🎵';
+              const buttonText = isCinema ? 'Join Watch Party' : 'Join Music Session';
               const inviteTitle = isCinema ? 'Cinema Date Watch Party' : 'Music Jam Session';
               
               const shadowClass = isCinema 
@@ -933,7 +936,8 @@ export const Chat: React.FC = () => {
                     <div className={`absolute -right-8 -top-8 w-20 h-20 rounded-full blur-xl pointer-events-none ${glowBg}`} />
                     
                     <h4 className={`text-[10px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${textClass}`}>
-                      ✨ {inviteTitle}
+                      <Sparkles className="w-3 h-3 text-current" />
+                      <span>{inviteTitle}</span>
                     </h4>
                     
                     <div className="flex items-center gap-3 mb-4">
@@ -949,9 +953,10 @@ export const Chat: React.FC = () => {
                     
                     <button
                       onClick={() => navigate.push(inviteData.url)}
-                      className={`w-full py-2.5 px-4 text-xs font-semibold rounded-xl text-white transition-all active:scale-[0.98] duration-200 ${btnClass}`}
+                      className={`w-full py-2.5 px-4 text-xs font-bold rounded-xl text-white transition-all active:scale-[0.98] duration-200 flex items-center justify-center gap-2 ${btnClass}`}
                     >
-                      {buttonText}
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{buttonText}</span>
                     </button>
                   </div>
                 </div>
@@ -973,7 +978,8 @@ export const Chat: React.FC = () => {
                     <div className="absolute -right-8 -top-8 w-20 h-20 bg-purple-500/10 rounded-full blur-xl pointer-events-none" />
                     
                     <h4 className="text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-3 flex items-center gap-1.5 font-mono">
-                      🎲 2 Truths & a Lie
+                      <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
+                      <span>2 Truths & a Lie</span>
                     </h4>
                     
                     {gameState.status === 'active' && !isMeCreator && !gameState.guess && (
@@ -995,9 +1001,9 @@ export const Chat: React.FC = () => {
                       <div className="space-y-2">
                         <p className="text-[11px] text-gray-400 mb-2">
                           You set up these options. Waiting for partner to guess {isUserOnline(partner.id) ? (
-                            <span className="text-green-400 font-semibold">(Online 🟢)</span>
+                            <span className="text-green-400 font-semibold inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Online</span>
                           ) : (
-                            <span className="text-gray-500 font-medium">(Offline ⚪ - they'll play when they return)</span>
+                            <span className="text-gray-500 font-medium inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Offline</span>
                           )}:
                         </p>
                         {gameState.options.map((opt, idx) => {
@@ -1060,9 +1066,9 @@ export const Chat: React.FC = () => {
                         
                         <div className={`text-xs font-bold text-center mt-3 pt-2 border-t border-purple-500/10 ${gameState.guessedCorrectly ? 'text-green-400' : 'text-red-400'}`}>
                           {gameState.guessedCorrectly ? (
-                            <span>🎉 Correct! The lie was spotted!</span>
+                            <span className="flex items-center justify-center gap-1.5 text-green-400"><Trophy className="w-4 h-4 text-yellow-400" /> Correct! The lie was spotted!</span>
                           ) : (
-                            <span>❌ Wrong! The lie was successfully hidden.</span>
+                            <span className="flex items-center justify-center gap-1.5 text-red-400"><AlertTriangle className="w-4 h-4 text-red-400" /> Wrong! The lie was successfully hidden.</span>
                           )}
                         </div>
                       </div>
@@ -1101,7 +1107,8 @@ export const Chat: React.FC = () => {
                     <div className="absolute -right-8 -top-8 w-20 h-20 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
                     
                     <h4 className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5 font-mono">
-                      ⚔️ Would You Rather
+                      <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Would You Rather</span>
                     </h4>
                     
                     <p className="text-xs text-gray-200 font-medium mb-3.5 line-clamp-3 leading-relaxed">{gameState.question}</p>
@@ -1128,9 +1135,9 @@ export const Chat: React.FC = () => {
                       <div className="space-y-3">
                         <p className="text-[11px] text-gray-400">
                           You voted. Waiting for partner to vote {isUserOnline(partner.id) ? (
-                            <span className="text-cyan-400 font-semibold">(Online 🟢)</span>
+                            <span className="text-cyan-400 font-semibold inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" /> Online</span>
                           ) : (
-                            <span className="text-gray-500 font-medium">(Offline ⚪ - they'll vote when they return)</span>
+                            <span className="text-gray-500 font-medium inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Offline</span>
                           )}...
                         </p>
                         <div className="px-4 py-3 text-xs bg-cyan-950/40 border border-cyan-900/30 rounded-xl text-gray-300 font-medium text-center font-mono">
@@ -1297,13 +1304,13 @@ export const Chat: React.FC = () => {
               
               {/* Tooltip hint to play */}
               <div className="absolute bottom-12 left-1/2 -translate-x-1/2 hidden group-hover:block bg-gray-950 border border-purple-500/20 px-2.5 py-1.5 rounded-xl text-[10px] text-purple-300 font-bold whitespace-nowrap shadow-2xl backdrop-blur-md z-45 transition-all">
-                🎲 Play Icebreakers & Games!
+                Play Icebreakers & Games!
               </div>
             </button>
             <input
               value={newMessage}
               onChange={e => handleInputChange(e.target.value)}
-              placeholder={activeGame ? "Type a message..." : "Type a message, or tap 🎲 to play a game..."}
+              placeholder={activeGame ? "Type a message..." : "Type a message, or start an icebreaker..."}
               aria-label="Message input"
               className="flex-1 bg-transparent py-3 text-sm text-white placeholder-gray-500 outline-none min-h-[44px] max-h-32"
             />
@@ -1314,7 +1321,10 @@ export const Chat: React.FC = () => {
                   {selectedGame === 'none' && (
                     <div className="space-y-3">
                       <div className="flex justify-between items-center pb-2 border-b border-gray-900">
-                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wide">🎲 Chat Icebreakers</h4>
+                        <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wide flex items-center gap-1.5">
+                          <Gamepad2 className="w-4 h-4 text-purple-400" />
+                          <span>Chat Icebreakers</span>
+                        </h4>
                         <button onClick={() => setShowGamesDrawer(false)} className="text-[10px] text-gray-500 hover:text-gray-300 font-mono">Close</button>
                       </div>
                       <div className="grid grid-cols-1 gap-2.5">
@@ -1323,7 +1333,9 @@ export const Chat: React.FC = () => {
                           onClick={() => setSelectedGame('2tl')}
                           className="flex items-center gap-3 p-3 rounded-xl bg-purple-950/20 hover:bg-purple-900/30 border border-purple-500/10 hover:border-purple-500/30 text-left transition-all group"
                         >
-                          <span className="text-xl">🎲</span>
+                          <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 group-hover:bg-purple-500/20 transition-all">
+                            <Gamepad2 className="w-5 h-5" />
+                          </div>
                           <div>
                             <div className="text-xs font-bold text-purple-300 group-hover:text-purple-200">2 Truths & a Lie</div>
                             <div className="text-[10px] text-gray-400">Post items and see if they can find the lie!</div>
@@ -1334,7 +1346,9 @@ export const Chat: React.FC = () => {
                           onClick={() => setSelectedGame('wyr')}
                           className="flex items-center gap-3 p-3 rounded-xl bg-cyan-950/20 hover:bg-cyan-900/30 border border-cyan-500/10 hover:border-cyan-500/30 text-left transition-all group"
                         >
-                          <span className="text-xl">⚔️</span>
+                          <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 group-hover:bg-cyan-500/20 transition-all">
+                            <HelpCircle className="w-5 h-5" />
+                          </div>
                           <div>
                             <div className="text-xs font-bold text-cyan-300 group-hover:text-cyan-200">Would You Rather</div>
                             <div className="text-[10px] text-gray-400">Vote on college & lifestyle questions together.</div>
@@ -1411,7 +1425,10 @@ export const Chat: React.FC = () => {
                           }}
                           className="w-full text-center py-1.5 bg-purple-500/10 border border-purple-500/20 hover:border-purple-400/40 rounded-lg text-[10px] text-purple-400 font-bold flex items-center justify-center gap-1.5 transition-all hover:bg-purple-900/10"
                         >
-                          ✨ Generate Random Idea
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Generate Random Idea</span>
+                          </span>
                         </button>
 
                         <button
@@ -1444,7 +1461,10 @@ export const Chat: React.FC = () => {
                               onClick={() => sendGameWYR(tmpl.question, tmpl.optionA, tmpl.optionB)}
                               className="text-left px-2.5 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-lg text-[10px] text-gray-300 transition-colors truncate hover:text-cyan-300"
                             >
-                              💡 {tmpl.optionA} OR {tmpl.optionB}
+                              <span className="flex items-center gap-1.5 truncate">
+                                <Lightbulb className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                <span className="truncate">{tmpl.optionA} OR {tmpl.optionB}</span>
+                              </span>
                             </button>
                           ))}
                         </div>
