@@ -1,9 +1,11 @@
-# Specification: Sparx - Glimpses (Campus Stories & Interaction Feed)
+# Specification: Sparx - Glimpses & Vibe Rooms (Duo Dates)
 
 ## 1. Goal & Product Overview
-The **Sparx Hub** is a dedicated real-time interaction center for university students. The core feature is **Glimpses**—a TikTok-style vertical stories feed of photos shared by students on campus that auto-expires after 24 hours.
+The **Sparx Hub** is a dedicated real-time interaction center for university students. It contains two core features:
+1.  **Glimpses:** A TikTok-style vertical stories feed of photos shared by students on campus that auto-expires after 24 hours.
+2.  **Vibe Rooms (Duo Dates):** Rebranded, Discord-style synchronized cinema and music spaces. Matches can create private streaming rooms and invite their partner with a single tap, sending a clickable "Join Room" button directly into their chat.
 
-This specification details the feed-first layout (Option A), the uploading system, and how reactions hook into the matchmaking engine.
+This specification details the feed-first layout (Option A), the uploading system, the integration of existing PeerJS watch parties, and the simplified match-invite flow.
 
 ---
 
@@ -95,12 +97,40 @@ The route `/sparx` is a full-height container with:
     *   **Heart button (`Heart` Lucide Icon):** Sends a ❤️ reaction. Animates with a pop-scale and glows pink.
     *   **Flame button (`Flame` Lucide Icon):** Sends a 🔥 reaction. Glows orange.
     *   **Connect/Like button (`Sparkles` Lucide Icon):** Initiates a mutual swipe/like. Glows purple.
-    *   **Duo Dates button (`Tv` Lucide Icon):** Launches PeerJS Watch Party overlay.
+    *   **Duo Dates button (`Tv` Lucide Icon):** Opens the Vibe Rooms / Duo Dates lobby panel.
 4.  **Floating Action Button (FAB):** A clean neon pink circular button in the bottom right corner with a simple `Plus` icon to trigger the upload modal.
 
 ---
 
-## 4. Frontend Component Breakdown
+## 4. Vibe Rooms (Duo Dates) Integration
+
+We will port the existing 1,700-line PeerJS watch party and music session logic into the `/sparx` directory:
+*   `/virtual-date/cinema` -> `/sparx/cinema`
+*   `/virtual-date/music` -> `/sparx/music`
+
+### Simplification of the Room Connection Flow
+Instead of forcing users to copy-paste room codes manually:
+1.  **Direct Invitation Menu:**
+    *   In the Room Lobby (e.g. `/sparx/cinema` landing), the user sees a list of their current active matches.
+    *   Clicking **"Invite to Stream"** automatically creates a room with a unique UUID (`cinema-room-id`).
+    *   It sends a system message directly to the target match's chat channel:
+        ```json
+        {
+          "content": "Cinema Date Watch Party",
+          "type": "system",
+          "metadata": {
+            "action": "join_room",
+            "url": "/sparx/cinema?room=cinema-room-id"
+          }
+        }
+        ```
+2.  **Inline Join Button:**
+    *   In the Chat View (`Chat.tsx`), when a message of type `system` with `action: 'join_room'` is received, it renders as a custom neon card containing a **`[Join Watch Party 🎬]`** button.
+    *   Tapping the button immediately routes the partner to `/sparx/cinema?room=cinema-room-id` and opens the media connection.
+
+---
+
+## 5. Frontend Component Breakdown
 
 We will create/modify the following files:
 
@@ -108,8 +138,8 @@ We will create/modify the following files:
 The primary controller view that:
 *   Queries active glimpses from Supabase.
 *   Handles pagination and swipe gestures.
+*   Provides a toggle overlay to load the Vibe Rooms (Duo Dates) Lobby.
 *   Shows a gestural hand overlay guide (`SwipeUp` animation) on the first launch of the tab using local storage checking.
-*   Renders the Glimpse Cards and holds state for active uploads.
 
 ### 2. `client/src/components/GlimpseCard.tsx`
 Renders an individual story card:
@@ -124,29 +154,6 @@ Renders an individual story card:
 
 ---
 
-## 5. Swipe-to-Like Integration
-
-When a user taps the `Sparkles` icon (Swipe-to-Like):
-1.  We insert a reaction record in the `glimpse_reactions` table:
-    ```typescript
-    await supabase.from('glimpse_reactions').insert({
-      glimpse_id: glimpseId,
-      user_id: currentUser.id,
-      reaction_type: 'like'
-    });
-    ```
-2.  We insert a standard swipe in the `swipes` table:
-    ```typescript
-    await supabase.from('swipes').insert({
-      liker_id: currentUser.id,
-      target_id: glimpseCreatorId,
-      action: 'like'
-    });
-    ```
-3.  The database matching trigger handles match creation (`public.matches`) if a mutual swipe is found.
-
----
-
 ## 6. Verification Plan
 
 ### Automated Verification
@@ -158,4 +165,4 @@ When a user taps the `Sparkles` icon (Swipe-to-Like):
 2.  **Stories Swiping:** Verify card snapping works correctly on mobile viewport views.
 3.  **Feed Expiration:** Verify stories older than 24 hours do not appear in queries.
 4.  **Reactions:** Verify clicking Heart/Flame triggers database inserts and updates count values live.
-5.  **Swipe matching:** Verify that swiping "like" on a Glimpse triggers match creation if the target user has swiped back.
+5.  **Duo Date Invitation:** Launch a Cinema Room, select a match to invite, verify the custom "Join Watch Party" card appears in their chat, and check if clicking it joins the room successfully.
