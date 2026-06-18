@@ -920,7 +920,21 @@ CREATE OR REPLACE FUNCTION public.cleanup_old_messages()
 AS $function$
 begin
   delete from public.messages
-  where created_at < (now() - interval '3 days');
+  where created_at < (now() - interval '10 days');
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.cleanup_stale_presence()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+begin
+  update public.user_presence
+  set is_online = false,
+      updated_at = now()
+  where is_online = true
+    and last_seen < (now() - interval '5 minutes');
 end;
 $function$;
 
