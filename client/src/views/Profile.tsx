@@ -795,221 +795,130 @@ export const Profile: React.FC = () => {
                                     )}
                                 </div>
 
-                                {/* Collapsible Settings Accordion Stack (Spans 2 cols) */}
-                                <div className="sm:col-span-2 space-y-4">
-                                    {/* 1. Account Center Dropdown */}
-                                    {isSelf && (
-                                        <div className="bg-zinc-900/30 border border-white/5 rounded-3xl backdrop-blur-md overflow-hidden hover:border-white/10 transition-colors">
-                                            <button
-                                                onClick={() => setShowAccount(!showAccount)}
-                                                className="w-full p-6 flex items-center justify-between text-left focus:outline-none"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2.5 bg-neon/10 rounded-xl text-neon">
-                                                        <Settings className="w-5 h-5" />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-black text-white uppercase tracking-widest text-sm">Account Center</h3>
-                                                        <p className="text-[10px] text-zinc-500 font-medium">Manage your security, credentials & session</p>
-                                                    </div>
-                                                </div>
-                                                <ChevronDown className={`w-5 h-5 text-zinc-400 transition-transform duration-300 ${showAccount ? 'rotate-180' : ''}`} />
-                                            </button>
-                                            
-                                            {showAccount && (
-                                                <div className="px-6 pb-6 pt-2 border-t border-white/5 animate-fade-in">
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-                                                        {!currentUser?.username ? (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setIsPasswordChangeOnly(false);
-                                                                    setCredForm({ username: '', password: '' });
-                                                                    setCredError(null);
-                                                                    setShowCredentialsModal(true);
-                                                                }}
-                                                                className="p-4 rounded-2xl bg-neon/10 border border-neon/30 hover:bg-neon/20 hover:border-neon/50 text-left transition-all flex items-center gap-3 animate-pulse"
-                                                            >
-                                                                <div className="p-2 bg-neon/20 rounded-lg text-neon flex-shrink-0">
-                                                                    <Lock className="w-4 h-4" />
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <span className="font-bold text-neon text-xs block">Set Username</span>
-                                                                    <span className="text-[10px] text-neon/70 font-light">Login credentials setup</span>
-                                                                </div>
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setIsPasswordChangeOnly(true);
-                                                                    setCredForm({ username: currentUser.username || '', password: '' });
-                                                                    setCredError(null);
-                                                                    setShowCredentialsModal(true);
-                                                                }}
-                                                                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
-                                                            >
-                                                                <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400 flex-shrink-0">
-                                                                    <User className="w-4 h-4" />
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <span className="font-bold text-zinc-200 text-xs block truncate">Change Password</span>
-                                                                    <span className="text-[10px] text-zinc-500 truncate block">@{currentUser.username}</span>
-                                                                </div>
-                                                            </button>
-                                                        )}
-
-                                                        <button
-                                                            onClick={handleRegisterPasskey}
-                                                            className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-neon/40 text-left transition-all flex items-center gap-3 group"
-                                                        >
-                                                            <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400 group-hover:text-neon flex-shrink-0 transition-colors">
-                                                                <Fingerprint className="w-4 h-4" />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <span className="font-bold text-zinc-200 text-xs block group-hover:text-neon transition-colors">Register Passkey</span>
-                                                                <span className="text-[10px] text-zinc-500">Secure biometric login</span>
-                                                            </div>
-                                                        </button>
-
-                                                        <button
-                                                            onClick={() => navigate.push('/contact')}
-                                                            className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-left transition-all flex items-center gap-3"
-                                                        >
-                                                            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 flex-shrink-0">
-                                                                <Mail className="w-4 h-4" />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <span className="font-bold text-zinc-200 text-xs block">Contact Support</span>
-                                                                <span className="text-[10px] text-zinc-500">Submit a support ticket</span>
-                                                            </div>
-                                                        </button>
-
-                                                        <button
-                                                            onClick={handleInstallPWA}
-                                                            className="p-4 rounded-2xl bg-gradient-to-r from-neon/15 to-purple-600/15 border border-neon/20 hover:border-neon/40 text-left transition-all flex items-center gap-3 animate-pulse"
-                                                        >
-                                                            <div className="p-2 bg-neon/15 rounded-lg text-neon flex-shrink-0">
-                                                                <Smartphone className="w-4 h-4" />
-                                                            </div>
-                                                            <div className="min-w-0 flex-1">
-                                                                <span className="font-bold text-zinc-200 text-xs block">Install App</span>
-                                                                <span className="text-[10px] text-zinc-500 block truncate">Add to your home screen</span>
-                                                            </div>
-                                                        </button>
-
-                                                        <button
-                                                            onClick={logout}
-                                                            className="p-4 rounded-2xl bg-red-950/20 border border-red-900/30 hover:bg-red-900/20 hover:border-red-500/50 text-left transition-all flex items-center gap-3 sm:col-span-2 md:col-span-1"
-                                                        >
-                                                            <div className="p-2 bg-red-500/10 rounded-lg text-red-500 flex-shrink-0">
-                                                                <LogOut className="w-4 h-4" />
-                                                            </div>
-                                                            <div>
-                                                                <span className="font-bold text-zinc-300 text-xs block">Log Out</span>
-                                                                <span className="text-[10px] text-zinc-500">Sign out of account</span>
-                                                            </div>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
+                                {/* Account Settings Panel (Spans 2 cols) */}
+                                {isSelf && (
+                                    <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2.5 bg-neon/10 rounded-xl text-neon">
+                                                <Settings className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-white uppercase tracking-widest text-sm">Account Settings</h3>
+                                                <p className="text-[10px] text-zinc-500 font-medium">Manage your security, credentials & session</p>
+                                            </div>
                                         </div>
-                                    )}
 
-                                    {/* 2. Safety & Legal Protection Dropdown */}
-                                    <div className="bg-zinc-900/30 border border-white/5 rounded-3xl backdrop-blur-md overflow-hidden hover:border-white/10 transition-colors">
-                                        <button
-                                            onClick={() => setShowLegal(!showLegal)}
-                                            className="w-full p-6 flex items-center justify-between text-left focus:outline-none"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400">
-                                                    <Shield className="w-5 h-5" />
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                            {/* Set Username or Change Password */}
+                                            {!currentUser?.username ? (
+                                                <button
+                                                    onClick={() => {
+                                                        setIsPasswordChangeOnly(false);
+                                                        setCredForm({ username: '', password: '' });
+                                                        setCredError(null);
+                                                        setShowCredentialsModal(true);
+                                                    }}
+                                                    className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                                >
+                                                    <div className="p-2 bg-white/10 rounded-lg text-zinc-300 flex-shrink-0">
+                                                        <Lock className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="font-bold text-zinc-200 text-xs block">Set Username</span>
+                                                        <span className="text-[10px] text-zinc-500 block">Login credentials setup</span>
+                                                    </div>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => {
+                                                        setIsPasswordChangeOnly(true);
+                                                        setCredForm({ username: currentUser.username || '', password: '' });
+                                                        setCredError(null);
+                                                        setShowCredentialsModal(true);
+                                                    }}
+                                                    className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                                >
+                                                    <div className="p-2 bg-white/10 rounded-lg text-zinc-300 flex-shrink-0">
+                                                        <User className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="font-bold text-zinc-200 text-xs block truncate">Change Password</span>
+                                                        <span className="text-[10px] text-zinc-500 truncate block">@{currentUser.username}</span>
+                                                    </div>
+                                                </button>
+                                            )}
+
+                                            {/* Register Passkey */}
+                                            <button
+                                                onClick={handleRegisterPasskey}
+                                                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                            >
+                                                <div className="p-2 bg-white/10 rounded-lg text-zinc-300 flex-shrink-0">
+                                                    <Fingerprint className="w-4 h-4" />
                                                 </div>
-                                                <div>
-                                                    <h3 className="font-black text-white uppercase tracking-widest text-sm">Safety & Legal Protection</h3>
-                                                    <p className="text-[10px] text-zinc-500 font-medium">Essential pages that protect and secure your identity</p>
+                                                <div className="min-w-0">
+                                                    <span className="font-bold text-zinc-200 text-xs block">Register Passkey</span>
+                                                    <span className="text-[10px] text-zinc-500">Secure biometric login</span>
                                                 </div>
-                                            </div>
-                                            <ChevronDown className={`w-5 h-5 text-zinc-400 transition-transform duration-300 ${showLegal ? 'rotate-180' : ''}`} />
-                                        </button>
-                                        
-                                        {showLegal && (
-                                            <div className="px-6 pb-6 pt-2 border-t border-white/5 animate-fade-in">
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4">
-                                                    {[
-                                                        { label: 'Safety Hub', desc: 'Tips, reporting, & protection guidelines', icon: Shield, path: '/safety' },
-                                                        { label: 'Community Guidelines', desc: 'Rules & expectations for students', icon: FileText, path: '/guidelines' },
-                                                        { label: 'Privacy Policy', desc: 'How we guard your personal data', icon: Lock, path: '/privacy' },
-                                                        { label: 'Terms of Service', desc: 'Legal agreements & expectations', icon: Scale, path: '/terms' }
-                                                    ].map(item => (
-                                                        <button
-                                                            key={item.path}
-                                                            onClick={() => navigate.push(item.path)}
-                                                            className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/20 hover:bg-white/10 text-left transition-all flex flex-col gap-2 group/btn"
-                                                        >
-                                                            <div className="p-2 bg-zinc-950 border border-white/5 rounded-lg text-neon group-hover/btn:text-white group-hover/btn:border-neon/30 transition-colors w-fit">
-                                                                <item.icon className="w-4 h-4" />
-                                                            </div>
-                                                            <div>
-                                                                <span className="font-bold text-zinc-200 text-xs block group-hover/btn:text-white transition-colors">{item.label}</span>
-                                                                <span className="text-[10px] text-zinc-500 block leading-tight mt-0.5">{item.desc}</span>
-                                                            </div>
-                                                        </button>
-                                                    ))}
+                                            </button>
+
+                                            {/* Contact Support */}
+                                            <button
+                                                onClick={() => navigate.push('/contact')}
+                                                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                            >
+                                                <div className="p-2 bg-white/10 rounded-lg text-zinc-300 flex-shrink-0">
+                                                    <Mail className="w-4 h-4" />
                                                 </div>
-                                            </div>
-                                        )}
+                                                <div className="min-w-0">
+                                                    <span className="font-bold text-zinc-200 text-xs block">Contact Support</span>
+                                                    <span className="text-[10px] text-zinc-500">Submit a support ticket</span>
+                                                </div>
+                                            </button>
+
+                                            {/* Install App */}
+                                            <button
+                                                onClick={handleInstallPWA}
+                                                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 text-left transition-all flex items-center gap-3"
+                                            >
+                                                <div className="p-2 bg-white/10 rounded-lg text-zinc-300 flex-shrink-0">
+                                                    <Smartphone className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <span className="font-bold text-zinc-200 text-xs block">Install App</span>
+                                                    <span className="text-[10px] text-zinc-500 block truncate">Add to your home screen</span>
+                                                </div>
+                                            </button>
+                                        </div>
                                     </div>
+                                )}
 
-                                    {/* 3. Behind the Scenes & Extras Dropdown */}
-                                    <div className="bg-zinc-900/30 border border-white/5 rounded-3xl backdrop-blur-md overflow-hidden hover:border-white/10 transition-colors">
+                                {/* Standalone Log Out Button */}
+                                {isSelf && (
+                                    <div className="sm:col-span-2 pt-2">
                                         <button
-                                            onClick={() => setShowBehindScenes(!showBehindScenes)}
-                                            className="w-full p-6 flex items-center justify-between text-left focus:outline-none"
+                                            onClick={logout}
+                                            className="w-full p-4 rounded-2xl bg-red-950/20 border border-red-900/30 hover:bg-red-900/20 hover:border-red-500/50 text-center transition-all flex items-center justify-center gap-2 group"
                                         >
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 bg-purple-500/10 rounded-xl text-purple-400">
-                                                    <Rocket className="w-5 h-5" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-black text-white uppercase tracking-widest text-sm">Behind the Scenes & Extras</h3>
-                                                    <p className="text-[10px] text-zinc-500 font-medium">Read our startup story & meet the engineering team</p>
-                                                </div>
-                                            </div>
-                                            <ChevronDown className={`w-5 h-5 text-zinc-400 transition-transform duration-300 ${showBehindScenes ? 'rotate-180' : ''}`} />
+                                            <LogOut className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
+                                            <span className="font-bold text-red-400 text-sm group-hover:text-red-300">Log Out</span>
                                         </button>
-                                        
-                                        {showBehindScenes && (
-                                            <div className="px-6 pb-6 pt-2 border-t border-white/5 animate-fade-in">
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 text-xs">
-                                                    <button
-                                                        onClick={() => navigate.push('/blog')}
-                                                        className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/20 transition-all flex items-center gap-3 group text-left w-full"
-                                                    >
-                                                        <div className="p-2.5 bg-neon/10 rounded-xl text-neon group-hover:scale-110 transition-transform">
-                                                            <Rocket className="w-5 h-5" />
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-bold text-white text-xs block group-hover:text-neon transition-colors">The OthrHalff Story</span>
-                                                            <span className="text-[10px] text-zinc-500">Read our startup blog & journey</span>
-                                                        </div>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={() => navigate.push('/developers')}
-                                                        className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/20 transition-all flex items-center gap-3 group text-left w-full"
-                                                    >
-                                                        <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400 group-hover:scale-110 transition-transform">
-                                                            <Code className="w-5 h-5" />
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-bold text-white text-xs block group-hover:text-blue-400 transition-colors">Meet the Devs</span>
-                                                            <span className="text-[10px] text-zinc-500">The engineering team building this</span>
-                                                        </div>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
+                                )}
+
+                                {/* Muted Footer Links for Legal & Informational Pages */}
+                                <div className="sm:col-span-2 flex flex-wrap justify-center items-center gap-x-4 gap-y-2 mt-8 pb-12 text-[11px] text-zinc-600 font-medium tracking-wide">
+                                    <button onClick={() => navigate.push('/safety')} className="hover:text-neon transition-colors">Safety Hub</button>
+                                    <span>•</span>
+                                    <button onClick={() => navigate.push('/guidelines')} className="hover:text-neon transition-colors">Guidelines</button>
+                                    <span>•</span>
+                                    <button onClick={() => navigate.push('/privacy')} className="hover:text-neon transition-colors">Privacy Policy</button>
+                                    <span>•</span>
+                                    <button onClick={() => navigate.push('/terms')} className="hover:text-neon transition-colors">Terms of Service</button>
+                                    <span>•</span>
+                                    <button onClick={() => navigate.push('/blog')} className="hover:text-neon transition-colors">Our Story</button>
+                                    <span>•</span>
+                                    <button onClick={() => navigate.push('/developers')} className="hover:text-neon transition-colors">Meet the Devs</button>
                                 </div>
                             </div>
                         )}
