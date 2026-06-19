@@ -730,32 +730,47 @@ export const Profile: React.FC = () => {
                                 </div>
 
                                 {/* Verification Card */}
-                                <div className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-white/10 transition-colors">
-                                    <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
-                                    <div className="flex items-center justify-between mb-4">
-                                        <span className="text-[10px] text-blue-400 font-black tracking-widest uppercase">Student Verification</span>
-                                        <Shield className="w-4 h-4 text-blue-400" />
+                                {profileUser.isVerified ? (
+                                    <div className="bg-gradient-to-br from-blue-950/25 to-zinc-900/30 border border-blue-500/20 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-blue-500/30 transition-all flex flex-col justify-between min-h-[160px]">
+                                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+                                        <div>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-[10px] text-blue-400 font-black tracking-widest uppercase">Student Verification</span>
+                                                <Shield className="w-4 h-4 text-blue-400" />
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-blue-400 font-bold text-sm mb-1.5">
+                                                <BadgeCheck className="w-4 h-4 fill-blue-500/10" /> Verified
+                                            </div>
+                                            <p className="text-[11px] text-zinc-400 leading-normal">
+                                                Your student credentials are authenticated and active.
+                                            </p>
+                                        </div>
                                     </div>
-                                    {profileUser.isVerified ? (
+                                ) : (
+                                    <div className="bg-gradient-to-br from-amber-950/20 to-zinc-900/30 border border-amber-500/30 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-amber-500/40 transition-all flex flex-col justify-between min-h-[160px]">
+                                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
                                         <div>
-                                            <div className="flex items-center gap-1.5 text-blue-400 font-bold text-sm mb-1">
-                                                <BadgeCheck className="w-4 h-4 fill-blue-500/10" /> Status: Verified
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-[10px] text-amber-400 font-black tracking-widest uppercase">Student Verification</span>
+                                                <Shield className="w-4 h-4 text-amber-400" />
                                             </div>
-                                            <p className="text-[11px] text-zinc-500">Your student credentials are authenticated.</p>
-                                        </div>
-                                    ) : (
-                                        <div>
-                                            <div className="flex items-center gap-1.5 text-zinc-400 font-bold text-sm mb-2">
-                                                <X className="w-4 h-4 text-zinc-500" /> Status: Unverified
+                                            <div className="flex items-center gap-1.5 text-amber-400 font-bold text-sm mb-1.5">
+                                                <X className="w-4 h-4 text-amber-500" /> Unverified
                                             </div>
-                                            {isSelf && (
-                                                <button onClick={() => setShowVerification(true)} className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline">
-                                                    Submit Verification Request <ExternalLink className="w-3 h-3" />
-                                                </button>
-                                            )}
+                                            <p className="text-[11px] text-zinc-400 leading-normal mb-4">
+                                                Verify your college email to access campus channels & glimpses.
+                                            </p>
                                         </div>
-                                    )}
-                                </div>
+                                        {isSelf && (
+                                            <button 
+                                                onClick={() => setShowVerification(true)} 
+                                                className="w-full py-2.5 rounded-xl bg-amber-500 text-black hover:bg-amber-400 font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)] hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] text-center"
+                                            >
+                                                Verify Now
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Passions Box (Spans 2 cols on desktop) */}
                                 <div className="sm:col-span-2 bg-zinc-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md hover:border-white/10 transition-colors">
@@ -906,19 +921,28 @@ export const Profile: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* Muted Footer Links for Legal & Informational Pages */}
-                                <div className="sm:col-span-2 flex flex-wrap justify-center items-center gap-x-4 gap-y-2 mt-8 pb-12 text-[11px] text-zinc-600 font-medium tracking-wide">
-                                    <button onClick={() => navigate.push('/safety')} className="hover:text-neon transition-colors">Safety Hub</button>
-                                    <span>•</span>
-                                    <button onClick={() => navigate.push('/guidelines')} className="hover:text-neon transition-colors">Guidelines</button>
-                                    <span>•</span>
-                                    <button onClick={() => navigate.push('/privacy')} className="hover:text-neon transition-colors">Privacy Policy</button>
-                                    <span>•</span>
-                                    <button onClick={() => navigate.push('/terms')} className="hover:text-neon transition-colors">Terms of Service</button>
-                                    <span>•</span>
-                                    <button onClick={() => navigate.push('/blog')} className="hover:text-neon transition-colors">Our Story</button>
-                                    <span>•</span>
-                                    <button onClick={() => navigate.push('/developers')} className="hover:text-neon transition-colors">Meet the Devs</button>
+                                {/* Footer Links for Legal & Informational Pages */}
+                                <div className="sm:col-span-2 border-t border-white/5 pt-8 mt-8 pb-12">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
+                                        <button onClick={() => navigate.push('/safety')} className="py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-xs font-bold text-zinc-400 hover:text-white flex items-center justify-center gap-2">
+                                            <Shield className="w-3.5 h-3.5" /> Safety Hub
+                                        </button>
+                                        <button onClick={() => navigate.push('/guidelines')} className="py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-xs font-bold text-zinc-400 hover:text-white flex items-center justify-center gap-2">
+                                            <FileText className="w-3.5 h-3.5" /> Guidelines
+                                        </button>
+                                        <button onClick={() => navigate.push('/privacy')} className="py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-xs font-bold text-zinc-400 hover:text-white flex items-center justify-center gap-2">
+                                            <Lock className="w-3.5 h-3.5" /> Privacy
+                                        </button>
+                                        <button onClick={() => navigate.push('/terms')} className="py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-xs font-bold text-zinc-400 hover:text-white flex items-center justify-center gap-2">
+                                            <Scale className="w-3.5 h-3.5" /> Terms
+                                        </button>
+                                        <button onClick={() => navigate.push('/blog')} className="py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-xs font-bold text-zinc-400 hover:text-white flex items-center justify-center gap-2">
+                                            <Rocket className="w-3.5 h-3.5" /> Our Story
+                                        </button>
+                                        <button onClick={() => navigate.push('/developers')} className="py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all text-xs font-bold text-zinc-400 hover:text-white flex items-center justify-center gap-2">
+                                            <Code className="w-3.5 h-3.5" /> Devs Team
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
