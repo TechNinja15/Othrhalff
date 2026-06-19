@@ -16,14 +16,14 @@ type SortOption = 'newest' | 'oldest' | 'popular' | 'discussed';
 
 const REACTIONS = ['❤️', '😂', '🔥', '😮', '😢', '👀'];
 const POSTS_PER_PAGE = 10;
-const CACHE_KEY = 'otherhalf_confessions_v4';
-const CACHE_EXPIRY_KEY = 'otherhalf_confessions_expiry_v4';
+const CACHE_KEY = 'otherhalf_confessions_cupid';
+const CACHE_EXPIRY_KEY = 'otherhalf_confessions_expiry_cupid';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 const readCache = (mode: 'campus' | 'global'): Confession[] => {
     try {
-        const cacheKey = `otherhalf_confessions_${mode}_v4`;
-        const expiryKey = `otherhalf_confessions_expiry_${mode}_v4`;
+        const cacheKey = `otherhalf_confessions_${mode}_cupid`;
+        const expiryKey = `otherhalf_confessions_expiry_${mode}_cupid`;
         const expiry = localStorage.getItem(expiryKey);
         if (expiry && Date.now() > parseInt(expiry, 10)) {
             localStorage.removeItem(cacheKey);
@@ -37,8 +37,8 @@ const readCache = (mode: 'campus' | 'global'): Confession[] => {
 
 const writeCache = (mode: 'campus' | 'global', data: Confession[]) => {
     try {
-        const cacheKey = `otherhalf_confessions_${mode}_v4`;
-        const expiryKey = `otherhalf_confessions_expiry_${mode}_v4`;
+        const cacheKey = `otherhalf_confessions_${mode}_cupid`;
+        const expiryKey = `otherhalf_confessions_expiry_${mode}_cupid`;
         localStorage.setItem(cacheKey, JSON.stringify(data));
         localStorage.setItem(expiryKey, String(Date.now() + CACHE_DURATION));
     } catch { /* quota exceeded */ }

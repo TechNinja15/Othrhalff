@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { getCachedProfilesBulk } from '../services/profileCache';
 
 interface NotificationItem {
     id: string;
@@ -58,17 +59,8 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
             const rawUserIds = (data || []).map(n => n.from_user_id || n.data?.from_user_id).filter(Boolean);
             const userIds = rawUserIds.filter((val, idx, self) => self.indexOf(val) === idx);
             
-            // Fetch profiles in a separate query
-            let profilesMap = new Map();
-            if (userIds.length > 0) {
-                const { data: profiles, error: profError } = await supabase
-                    .from('profiles')
-                    .select('id, anonymous_id, avatar, university')
-                    .in('id', userIds);
-                if (profiles && !profError) {
-                    profiles.forEach(p => profilesMap.set(p.id, p));
-                }
-            }
+            // Fetch profiles using the caching layer
+            const profilesMap = await getCachedProfilesBulk(userIds);
 
             const mapped: NotificationItem[] = (data || []).map((n: any) => {
                 const fromUserId = n.from_user_id || n.data?.from_user_id;
@@ -86,8 +78,8 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
                     fromUser: fromUser ? {
                         id: fromUser.id,
                         anonymousId: fromUser.anonymous_id,
-                        avatar: fromUser.avatar,
-                        university: fromUser.university
+                        avatar: fromUser.avatar || '',
+                        university: fromUser.university || ''
                     } : undefined
                 };
             });

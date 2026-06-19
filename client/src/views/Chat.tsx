@@ -16,6 +16,7 @@ import { getOptimizedUrl } from '../utils/image';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, LocalMessage } from '../lib/db';
 import Dexie from 'dexie';
+import { getCachedProfile } from '../services/profileCache';
 
 import { getRandomQuote } from '../data/loadingQuotes';
 import { 
@@ -77,7 +78,7 @@ export const Chat: React.FC = () => {
   const params = useParams();
   const id = params?.id as string;
   const matchId = id!; // Guaranteed by route
-  const cacheKey = `otherhalf_chat_${matchId}_v3`;
+  const cacheKey = `otherhalf_chat_${matchId}_cupid`;
 
   const [partner, setPartner] = useState<MatchProfile | null>(null);
 
@@ -295,15 +296,24 @@ export const Chat: React.FC = () => {
         if (!partnerId) {
           partnerId = matchData.user_a === currentUser.id ? matchData.user_b : matchData.user_a;
 
-          // If we had to fetch ID, we must fetch profile to show anything
-          const { data: profile } = await supabase.from('profiles').select('id, real_name, anonymous_id, avatar, is_verified').eq('id', partnerId).single();
+          // Retrieve from local cache or Supabase
+          const profile = await getCachedProfile(partnerId as string);
           if (profile) {
-            const newPartner = {
-              id: profile.id, anonymousId: profile.anonymous_id, realName: profile.real_name,
-              gender: '', university: '', branch: '',
-              year: '', interests: [], bio: '',
-              dob: '', isVerified: profile.is_verified, avatar: profile.avatar,
-              matchPercentage: 0, distance: 'Connected'
+            const newPartner: MatchProfile = {
+              id: profile.id,
+              anonymousId: profile.anonymous_id,
+              realName: profile.real_name || 'Anonymous',
+              gender: '',
+              university: profile.university || '',
+              branch: '',
+              year: '',
+              interests: [],
+              bio: '',
+              dob: '',
+              isVerified: profile.is_verified,
+              avatar: profile.avatar || undefined,
+              matchPercentage: 0,
+              distance: 'Connected'
             };
             setPartner(newPartner);
             subscribeToUser(partnerId!);
@@ -311,31 +321,28 @@ export const Chat: React.FC = () => {
           }
         } else {
           // We have a partner (from State/Cache). 
-          // Refresh profile in BACKGROUND (Fire & Forget) to keep clear of stale data if cache is > 5 mins old
-          const shouldRefreshProfile = !cacheTime || (Date.now() - cacheTime > 5 * 60 * 1000);
-          
-          if (shouldRefreshProfile) {
-            supabase.from('profiles').select('id, real_name, anonymous_id, avatar, is_verified').eq('id', partnerId).single().then(({ data: profile }) => {
-              if (profile) {
-                setPartner(prev => {
-                  if (!prev) return prev;
-                  const updated = {
-                    ...prev,
-                    realName: profile.real_name,
-                    anonymousId: profile.anonymous_id,
-                    avatar: profile.avatar,
-                    isVerified: profile.is_verified
-                  };
-                  // Only update if changed (simple check)
-                  if (JSON.stringify(prev) !== JSON.stringify(updated)) {
-                    try { sessionStorage.setItem(cacheKey, JSON.stringify({ partner: updated, timestamp: Date.now() })); } catch (e) { }
-                    return updated;
-                  }
-                  return prev;
-                });
-              }
-            });
-          }
+          // Refresh profile in BACKGROUND (Fire & Forget) using our cached profile check
+          getCachedProfile(partnerId!).then((profile) => {
+            if (profile) {
+              setPartner(prev => {
+                if (!prev) return prev;
+                const updated: MatchProfile = {
+                  ...prev,
+                  realName: profile.real_name || 'Anonymous',
+                  anonymousId: profile.anonymous_id,
+                  avatar: profile.avatar || undefined,
+                  isVerified: profile.is_verified,
+                  university: profile.university || prev.university
+                };
+                // Only update if changed (simple check)
+                if (JSON.stringify(prev) !== JSON.stringify(updated)) {
+                  try { sessionStorage.setItem(cacheKey, JSON.stringify({ partner: updated, timestamp: Date.now() })); } catch (e) { }
+                  return updated;
+                }
+                return prev;
+              });
+            }
+          });
         }
 
         // Parallel Fetch: Messages + Block Status
