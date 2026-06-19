@@ -19,3 +19,23 @@ When executing queries or data transfers between the environments:
   - Database JSON backups must reside in `db_backup/`, which is ignored by Git.
   - Custom assets must reside in `othrhalff_assets/` (using underscores instead of spaces to avoid shell scripting path escape errors).
   - Use the utility script at `db_backup/scripts/dump_schema.cjs` to refresh the database schema reference in `db infra.ignore` when schema changes occur.
+
+## 4. Architecture & Design Decisions
+
+### ForceLogoutCountdown
+- The `ForceLogoutCountdown` component is **intentionally triggered on post-deploy** to force users to reload and receive the latest features. It is NOT a security logout.
+- Copy must reflect this: title "New Update Available", not "Session Expired" or anything security-related.
+- After the countdown completes, `AuthContext.handleCountdownComplete` navigates to `/login` via `router.push('/login')` so users are not stranded on a protected route.
+
+### Presence System
+- The keepalive beacon in `PresenceContext.tsx` (`handleBeforeUnload`) uses a hardcoded localStorage key to extract the auth token. This key must always match the **new** Supabase project: `sb-cthyiegohnvqtepzoqjf-auth-token`. Do not revert to the old key `sb-htepqqigtzmllailykas-auth-token`.
+- `user_presence` RLS uses **separate INSERT and UPDATE policies** (not a single ALL policy) to avoid 42501 USING expression errors on upsert.
+
+### University Matching
+- University strings in `profiles` are stored with city suffixes (e.g. `"Amity University, Raipur"`). All campus-mode matching must use `LOWER(TRIM(split_part(university, ',', 1)))` to normalize before comparison.
+- The functional index `idx_profiles_university_clean` exists on `profiles` for this exact expression. Do not bypass it with raw equality checks.
+- Both `get_potential_matches` and `get_skipped_profiles` RPCs use this logic. Keep them in sync if either is modified.
+
+### Pagination & Random Ordering
+- `get_potential_matches` uses `ORDER BY random()`. Combining this with `OFFSET`-based pagination causes duplicates and skipped rows across pages because the shuffle changes on every call.
+- If infinite scroll / "load more" is ever implemented, switch to a **seeded random** (pass a per-session seed from the client, call `SELECT setseed(seed)` before the query) or a stable cursor-based sort instead.
