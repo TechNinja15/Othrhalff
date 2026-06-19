@@ -106,7 +106,7 @@ const ForceLogoutCountdown: React.FC<ForceLogoutCountdownProps> = ({ onComplete 
                     fontFamily: 'Inter, system-ui, sans-serif',
                     letterSpacing: '-0.02em',
                 }}>
-                    Session Expired
+                    New Update Available
                 </h2>
 
                 {/* Subtitle */}
@@ -117,7 +117,7 @@ const ForceLogoutCountdown: React.FC<ForceLogoutCountdownProps> = ({ onComplete 
                     lineHeight: 1.6,
                     fontFamily: 'Inter, system-ui, sans-serif',
                 }}>
-                    Your session has expired. Logging you out for security.
+                    We just shipped something new. Reloading so you get the latest version right away.
                 </p>
 
                 {/* Circular Progress Countdown */}
