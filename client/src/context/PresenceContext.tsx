@@ -144,7 +144,7 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     updated_at: new Date().toISOString()
                 });
 
-                const storageKey = 'sb-htepqqigtzmllailykas-auth-token';
+                const storageKey = 'sb-cthyiegohnvqtepzoqjf-auth-token';
                 const token = tokenRef.current || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem(storageKey) || '{}')?.access_token : null);
 
                 const headers: Record<string, string> = {
