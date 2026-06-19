@@ -214,44 +214,27 @@ export const Sparx: React.FC = () => {
     setError(null);
     try {
       let query = supabase
-        .from('glimpses')
-        .select(`
-          user_id,
-          university,
-          profiles:user_id (
-            id,
-            real_name,
-            anonymous_id,
-            avatar,
-            is_verified,
-            university
-          )
-        `);
+        .from('glimpse_leaderboard')
+        .select('profiles, count, glimpse_university');
         
       const targetUniv = currentUser?.university?.trim();
       if (leaderboardScope === 'campus' && targetUniv) {
-        query = query.ilike('university', `${targetUniv}%`);
+        query = query.ilike('glimpse_university', `${targetUniv}%`);
       }
+      
+      query = query
+        .order('count', { ascending: false })
+        .limit(20);
       
       const { data, error: queryError } = await query;
       if (queryError) throw queryError;
       
-      const countsMap: { [uid: string]: { count: number; profile: GlimpseProfile } } = {};
+      const formatted = (data || []).map((row: any) => ({
+        profile: row.profiles as GlimpseProfile,
+        count: row.count
+      }));
       
-      data?.forEach((row: any) => {
-        if (!row.profiles) return;
-        const uid = row.user_id;
-        if (!countsMap[uid]) {
-          countsMap[uid] = { count: 0, profile: row.profiles };
-        }
-        countsMap[uid].count += 1;
-      });
-      
-      const sorted = Object.values(countsMap)
-        .map(item => ({ profile: item.profile, count: item.count }))
-        .sort((a, b) => b.count - a.count);
-        
-      setLeaderboardUsers(sorted);
+      setLeaderboardUsers(formatted);
     } catch (err: any) {
       console.error('Error fetching leaderboard:', err);
       setError(err.message || 'Failed to load leaderboard');
