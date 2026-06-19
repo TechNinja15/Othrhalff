@@ -153,30 +153,7 @@ export const Profile: React.FC = () => {
     // Resolve which profile to show
     const profileUser = isSelf ? currentUser : fetchedProfile;
 
-    // Profile completeness computation
-    const getProfileCompleteness = (user: UserProfile) => {
-        let score = 0;
-        if (user.avatar) score += 25;
-        if (user.bio && user.bio.trim().length > 0) score += 25;
-        if (user.interests && user.interests.length >= 3) score += 20;
-        else if (user.interests && user.interests.length > 0) score += 10;
-        if (user.lookingFor && user.lookingFor.length >= 1) score += 15;
-        if (user.isVerified) score += 15;
-        return Math.min(100, score);
-    };
 
-    const getCompletenessRecommendations = (user: UserProfile) => {
-        const recs: string[] = [];
-        if (!user.avatar) recs.push("Add a profile photo");
-        if (!user.bio || user.bio.trim().length === 0) recs.push("Write a bio about yourself");
-        if (!user.interests || user.interests.length < 3) recs.push("Add at least 3 interests");
-        if (!user.lookingFor || user.lookingFor.length === 0) recs.push("Choose what you're looking for");
-        if (!user.isVerified) recs.push("Verify your student email");
-        return recs;
-    };
-
-    const completeness = profileUser ? getProfileCompleteness(profileUser) : 0;
-    const recommendations = profileUser ? getCompletenessRecommendations(profileUser) : [];
 
     // Fetch Profile Data (if not self)
     useEffect(() => {
@@ -487,49 +464,7 @@ export const Profile: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Completeness Ring directly in Hero Card for Self */}
-                            {(isSelf && !isEditing) && (
-                                <div className="flex-shrink-0 flex items-center gap-4 p-4 bg-zinc-950/40 border border-white/5 rounded-3xl backdrop-blur-md self-stretch md:self-center">
-                                    <div className="relative flex-shrink-0 w-16 h-16 flex items-center justify-center">
-                                        <svg className="w-full h-full transform -rotate-90">
-                                            <circle
-                                                cx="32"
-                                                cy="32"
-                                                r="26"
-                                                className="stroke-zinc-800"
-                                                strokeWidth="4"
-                                                fill="transparent"
-                                            />
-                                            <circle
-                                                cx="32"
-                                                cy="32"
-                                                r="26"
-                                                className="stroke-neon transition-all duration-500 ease-out"
-                                                strokeWidth="4"
-                                                fill="transparent"
-                                                strokeDasharray={2 * Math.PI * 26}
-                                                strokeDashoffset={2 * Math.PI * 26 - (completeness / 100) * (2 * Math.PI * 26)}
-                                                strokeLinecap="round"
-                                            />
-                                        </svg>
-                                        <span className="absolute text-xs font-black text-white">{completeness}%</span>
-                                    </div>
-                                    <div className="min-w-0 text-left">
-                                        <h4 className="font-bold text-[10px] uppercase tracking-widest text-zinc-500 mb-0.5">Profile Strength</h4>
-                                        {completeness === 100 ? (
-                                            <p className="text-[11px] text-green-400 font-semibold">100% Set Up</p>
-                                        ) : (
-                                            <p className="text-[11px] text-zinc-400 leading-snug">
-                                                {recommendations.length > 0 ? (
-                                                    <span>Add <strong className="text-neon">{recommendations[0].toLowerCase().split(' ')[0]}...</strong></span>
-                                                ) : (
-                                                    "Improve setup"
-                                                )}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+
 
                         </div>
                     </div>
