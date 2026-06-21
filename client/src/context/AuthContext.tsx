@@ -181,6 +181,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearAllCaches = useCallback(() => {
     // Session storage caches
+    sessionStorage.removeItem('otherhalf_discover_cache_cupid_campus');
+    sessionStorage.removeItem('otherhalf_discover_cache_cupid_expiry_campus');
+    sessionStorage.removeItem('otherhalf_discover_cache_cupid_global');
+    sessionStorage.removeItem('otherhalf_discover_cache_cupid_expiry_global');
+    // Legacy keys from before cupid release — safe to nuke on logout
     sessionStorage.removeItem('otherhalf_discover_cache_v3');
     sessionStorage.removeItem('otherhalf_discover_cache_expiry_v3');
     // Matches cache (localStorage, persists across tabs)

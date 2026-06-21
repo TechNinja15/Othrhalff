@@ -14,8 +14,8 @@ import { safeSetItem } from '../utils/storage';
 
 
 // Cache key for session storage — keyed by filter mode so campus/global don't bleed into each other
-const getCacheKey = (mode: string) => `otherhalf_discover_cache_v3_${mode}`;
-const getCacheExpiryKey = (mode: string) => `otherhalf_discover_cache_expiry_v3_${mode}`;
+const getCacheKey = (mode: string) => `otherhalf_discover_cache_cupid_${mode}`;
+const getCacheExpiryKey = (mode: string) => `otherhalf_discover_cache_cupid_expiry_${mode}`;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Calculate age from DOB string
