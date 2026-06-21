@@ -13,9 +13,9 @@ import { getRandomQuote } from '../data/loadingQuotes';
 import { safeSetItem } from '../utils/storage';
 
 
-// Cache key for session storage
-const PROFILES_CACHE_KEY = 'otherhalf_discover_cache_v3';
-const CACHE_EXPIRY_KEY = 'otherhalf_discover_cache_expiry_v3';
+// Cache key for session storage — keyed by filter mode so campus/global don't bleed into each other
+const getCacheKey = (mode: string) => `otherhalf_discover_cache_v3_${mode}`;
+const getCacheExpiryKey = (mode: string) => `otherhalf_discover_cache_expiry_v3_${mode}`;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Calculate age from DOB string
@@ -217,8 +217,8 @@ export const Home: React.FC = () => {
 
                 // Cache the data safely
                 try {
-                    sessionStorage.setItem(PROFILES_CACHE_KEY, JSON.stringify(mappedProfiles));
-                    sessionStorage.setItem(CACHE_EXPIRY_KEY, (Date.now() + CACHE_DURATION).toString());
+                    sessionStorage.setItem(getCacheKey(filterMode), JSON.stringify(mappedProfiles));
+                    sessionStorage.setItem(getCacheExpiryKey(filterMode), (Date.now() + CACHE_DURATION).toString());
                 } catch (e) {
                     console.warn('Failed to cache profiles:', e);
                     // If quota exceeded, we just don't cache. No crash.
@@ -241,8 +241,8 @@ export const Home: React.FC = () => {
 
             // 1. Try cache first for instant load (stale-while-revalidate)
             try {
-                const cachedData = sessionStorage.getItem(PROFILES_CACHE_KEY);
-                const cachedExpiry = sessionStorage.getItem(CACHE_EXPIRY_KEY);
+                const cachedData = sessionStorage.getItem(getCacheKey(filterMode));
+                const cachedExpiry = sessionStorage.getItem(getCacheExpiryKey(filterMode));
 
                 if (cachedData && cachedExpiry && Date.now() < Number(cachedExpiry)) {
                     const cached = JSON.parse(cachedData);
@@ -413,7 +413,7 @@ export const Home: React.FC = () => {
             setQueue(nextQueue);
 
             // USE SAFE SET ITEM HERE to prevent crash if storage is full
-            safeSetItem(PROFILES_CACHE_KEY, JSON.stringify(nextQueue));
+            safeSetItem(getCacheKey(filterMode), JSON.stringify(nextQueue));
 
             // 2. UNLOCK UI IMMEDIATELY
             setIsSwiping(false);
