@@ -7,6 +7,7 @@ import { Heart, X, MapPin, GraduationCap, Ghost, BadgeCheck, School, Globe, Bell
 import { supabase } from '../lib/supabase';
 import { analytics } from '../utils/analytics';
 import { getOptimizedUrl } from '../utils/image';
+import { calculateMatchPercentage } from '../utils/matchingAlgorithm';
 
 import { getRandomQuote } from '../data/loadingQuotes';
 import { safeSetItem } from '../utils/storage';
@@ -121,7 +122,23 @@ export const Home: React.FC = () => {
                     isVerified: p.is_verified,
                     avatar: p.avatar,
                     lookingFor: p.looking_for || [],
-                    matchPercentage: Math.floor(Math.random() * (99 - 70 + 1) + 70),
+                    matchPercentage: calculateMatchPercentage(currentUser, {
+                        id: p.id,
+                        anonymousId: p.anonymous_id,
+                        realName: p.real_name,
+                        gender: p.gender,
+                        university: p.university,
+                        branch: p.branch,
+                        year: p.year,
+                        interests: p.interests || [],
+                        bio: p.bio,
+                        dob: p.dob,
+                        isVerified: p.is_verified,
+                        avatar: p.avatar,
+                        lookingFor: p.looking_for || [],
+                        matchPercentage: 0,
+                        distance: ''
+                    }),
                     distance: 'Recycled'
                 }));
                 setQueue(mappedProfiles);
@@ -173,7 +190,23 @@ export const Home: React.FC = () => {
                     isVerified: p.is_verified,
                     avatar: p.avatar,
                     lookingFor: p.looking_for || [],
-                    matchPercentage: Math.floor(Math.random() * (99 - 70 + 1) + 70),
+                    matchPercentage: calculateMatchPercentage(currentUser, {
+                        id: p.id,
+                        anonymousId: p.anonymous_id,
+                        realName: p.real_name,
+                        gender: p.gender,
+                        university: p.university,
+                        branch: p.branch,
+                        year: p.year,
+                        interests: p.interests || [],
+                        bio: p.bio,
+                        dob: p.dob,
+                        isVerified: p.is_verified,
+                        avatar: p.avatar,
+                        lookingFor: p.looking_for || [],
+                        matchPercentage: 0,
+                        distance: ''
+                    }),
                     distance: filterMode === 'campus' ? 'On Campus' : 'Global'
                 }));
 
