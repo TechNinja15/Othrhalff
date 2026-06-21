@@ -180,22 +180,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const clearAllCaches = useCallback(() => {
-    // Session storage caches
-    sessionStorage.removeItem('otherhalf_discover_cache_cupid_campus');
-    sessionStorage.removeItem('otherhalf_discover_cache_cupid_expiry_campus');
-    sessionStorage.removeItem('otherhalf_discover_cache_cupid_global');
-    sessionStorage.removeItem('otherhalf_discover_cache_cupid_expiry_global');
-    // Legacy keys from before cupid release — safe to nuke on logout
-    sessionStorage.removeItem('otherhalf_discover_cache_v3');
-    sessionStorage.removeItem('otherhalf_discover_cache_expiry_v3');
-    // Matches cache (localStorage, persists across tabs)
-    localStorage.removeItem('otherhalf_matches_cache_v6');
-    localStorage.removeItem('otherhalf_matches_expiry_v6');
-    // Confessions caches
-    localStorage.removeItem('otherhalf_confessions_campus_v4');
-    localStorage.removeItem('otherhalf_confessions_global_v4');
-    localStorage.removeItem('otherhalf_confessions_expiry_campus_v4');
-    localStorage.removeItem('otherhalf_confessions_expiry_global_v4');
+    if (typeof window !== 'undefined') {
+      // 1. Clear session storage completely (safe for transient caches)
+      sessionStorage.clear();
+
+      // 2. Clear specific user/session-scoped keys from localStorage
+      const prefixesToRemove = ['otherhalf_', 'othrhalff_', 'deleted_messages_', 'cleared_chat_'];
+      const specificKeysToRemove = ['viewed_glimpse_ids'];
+
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key) {
+          const shouldRemove = prefixesToRemove.some(prefix => key.startsWith(prefix)) ||
+                              specificKeysToRemove.includes(key);
+          if (shouldRemove) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    }
   }, []);
 
   const handleCountdownComplete = useCallback(() => {

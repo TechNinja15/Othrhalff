@@ -16,8 +16,6 @@ type SortOption = 'newest' | 'oldest' | 'popular' | 'discussed';
 
 const REACTIONS = ['❤️', '😂', '🔥', '😮', '😢', '👀'];
 const POSTS_PER_PAGE = 10;
-const CACHE_KEY = 'otherhalf_confessions_cupid';
-const CACHE_EXPIRY_KEY = 'otherhalf_confessions_expiry_cupid';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 const readCache = (mode: 'campus' | 'global'): Confession[] => {
