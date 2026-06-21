@@ -39,3 +39,10 @@ When executing queries or data transfers between the environments:
 ### Pagination & Random Ordering
 - `get_potential_matches` uses `ORDER BY random()`. Combining this with `OFFSET`-based pagination causes duplicates and skipped rows across pages because the shuffle changes on every call.
 - If infinite scroll / "load more" is ever implemented, switch to a **seeded random** (pass a per-session seed from the client, call `SELECT setseed(seed)` before the query) or a stable cursor-based sort instead.
+
+## 5. Known Security Debt
+
+### get_skipped_profiles SECURITY DEFINER vulnerability
+- **Issue:** `get_skipped_profiles` is `SECURITY DEFINER` (bypasses RLS) and accepts `current_user_id` as a client-supplied parameter. Any authenticated user can pass a foreign UUID and read another user's skipped profile list.
+- **Why deferred:** UUIDs are not exposed in the client, so exploitation requires knowing a victim's UUID first. Low practical risk for now.
+- **Fix when ready:** Add `AND auth.uid() = current_user_id` inside the function body, OR drop `SECURITY DEFINER` and let RLS handle it like `get_potential_matches` does.
