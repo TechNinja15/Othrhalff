@@ -53,6 +53,7 @@ export const Home: React.FC = () => {
     const [showSuccessBurst, setShowSuccessBurst] = useState(false);
     const [isSwiping, setIsSwiping] = useState(false);
     const [isRecycleMode, setIsRecycleMode] = useState(false);
+    const [recycleMessage, setRecycleMessage] = useState<string | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const [showTutorial, setShowTutorial] = useState(false);
 
@@ -93,11 +94,14 @@ export const Home: React.FC = () => {
     const fetchSkippedProfiles = async () => {
         if (!currentUser || !supabase) return;
         setIsLoading(true);
+        setRecycleMessage(null);
         try {
             const { data, error } = await supabase.rpc('get_skipped_profiles', {
                 current_user_id: currentUser.id,
                 match_mode: filterMode,
-                user_university: currentUser.university
+                user_university: currentUser.university,
+                limit_count: 20,
+                offset_count: 0
             });
 
             if (error) throw error;
@@ -124,10 +128,11 @@ export const Home: React.FC = () => {
                 setIsRecycleMode(true);
                 preloadImages(mappedProfiles.slice(0, 5));
             } else {
-                alert("No skipped profiles found yet! Swipe left on some people first, or your previous history might have been reset during the update.");
+                setRecycleMessage('No skipped profiles yet. Pass on someone first and they will show up here.');
             }
         } catch (err) {
             console.error('Error fetching skipped profiles:', err);
+            setRecycleMessage('Could not load skipped profiles. Try again.');
         } finally {
             setIsLoading(false);
         }
@@ -621,6 +626,11 @@ export const Home: React.FC = () => {
                             >
                                 <Ghost className="w-4 h-4" /> Review Skipped Profiles
                             </button>
+                            {recycleMessage && (
+                                <p className="text-gray-500 text-xs text-center px-4 mt-1 leading-relaxed">
+                                    {recycleMessage}
+                                </p>
+                            )}
                         </div>
                     </div>
                 ) : (
