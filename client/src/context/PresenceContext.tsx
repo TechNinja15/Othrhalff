@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -18,7 +18,7 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const { currentUser } = useAuth();
     const [onlineUsers, setOnlineUsers] = useState<Map<string, boolean>>(new Map());
     const [lastSeenMap, setLastSeenMap] = useState<Map<string, Date>>(new Map());
-    const trackedUsersRef = useRef<Set<string>>(new Set());
+    const trackedUsersRef = useRef<Map<string, number>>(new Map());
     const globalChannelRef = useRef<any>(null);
     const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -205,64 +205,92 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 const presenceState = channel.presenceState();
                 
                 setOnlineUsers(prev => {
+                    let changed = false;
                     const nextOnline = new Map(prev);
                     
                     // Clear previous states for currently tracked users
-                    trackedUsersRef.current.forEach(userId => {
-                        nextOnline.set(userId, !!presenceState[userId]);
+                    trackedUsersRef.current.forEach((count, userId) => {
+                        const isOnline = !!presenceState[userId];
+                        if (nextOnline.get(userId) !== isOnline) {
+                            nextOnline.set(userId, isOnline);
+                            changed = true;
+                        }
                     });
                     
-                    // Mark anyone in the presenceState as online
+                    // Mark anyone in the presenceState as online if they are tracked
                     Object.keys(presenceState).forEach(userId => {
-                        const userPresences = presenceState[userId];
-                        const isUserOnline = userPresences?.some((p: any) => p.is_online !== false);
-                        nextOnline.set(userId, !!isUserOnline);
-                    });
-                    
-                    return nextOnline;
-                });
-
-                setLastSeenMap(prev => {
-                    const nextLastSeen = new Map(prev);
-                    Object.keys(presenceState).forEach(userId => {
-                        const userPresences = presenceState[userId];
-                        if (userPresences && userPresences.length > 0) {
-                            const lastSeenStr = (userPresences[0] as any).last_seen;
-                            if (lastSeenStr) {
-                                nextLastSeen.set(userId, new Date(lastSeenStr));
+                        if (trackedUsersRef.current.has(userId)) {
+                            const userPresences = presenceState[userId];
+                            const isUserOnline = !!userPresences?.some((p: any) => p.is_online !== false);
+                            if (nextOnline.get(userId) !== isUserOnline) {
+                                nextOnline.set(userId, isUserOnline);
+                                changed = true;
                             }
                         }
                     });
-                    return nextLastSeen;
+                    
+                    return changed ? nextOnline : prev;
+                });
+
+                setLastSeenMap(prev => {
+                    let changed = false;
+                    const nextLastSeen = new Map(prev);
+                    Object.keys(presenceState).forEach(userId => {
+                        if (trackedUsersRef.current.has(userId)) {
+                            const userPresences = presenceState[userId];
+                            if (userPresences && userPresences.length > 0) {
+                                const lastSeenStr = (userPresences[0] as any).last_seen;
+                                if (lastSeenStr) {
+                                    const newDate = new Date(lastSeenStr);
+                                    const oldDate = nextLastSeen.get(userId);
+                                    if (!oldDate || oldDate.getTime() !== newDate.getTime()) {
+                                        nextLastSeen.set(userId, newDate);
+                                        changed = true;
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    return changed ? nextLastSeen : prev;
                 });
             })
             .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-                const isUserOnline = newPresences?.some((p: any) => p.is_online !== false);
+                if (!trackedUsersRef.current.has(key)) return;
+                const isUserOnline = !!newPresences?.some((p: any) => p.is_online !== false);
                 setOnlineUsers(prev => {
+                    if (prev.get(key) === isUserOnline) return prev;
                     const m = new Map(prev);
-                    m.set(key, !!isUserOnline);
+                    m.set(key, isUserOnline);
                     return m;
                 });
                 if (newPresences && newPresences.length > 0) {
                     const lastSeenStr = (newPresences[0] as any).last_seen;
                     if (lastSeenStr) {
+                        const newDate = new Date(lastSeenStr);
                         setLastSeenMap(prev => {
+                            const oldDate = prev.get(key);
+                            if (oldDate && oldDate.getTime() === newDate.getTime()) return prev;
                             const m = new Map(prev);
-                            m.set(key, new Date(lastSeenStr));
+                            m.set(key, newDate);
                             return m;
                         });
                     }
                 }
             })
             .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+                if (!trackedUsersRef.current.has(key)) return;
                 setOnlineUsers(prev => {
+                    if (prev.get(key) === false) return prev;
                     const m = new Map(prev);
                     m.set(key, false);
                     return m;
                 });
+                const leaveDate = new Date();
                 setLastSeenMap(prev => {
+                    const oldDate = prev.get(key);
+                    if (oldDate && Math.abs(oldDate.getTime() - leaveDate.getTime()) < 1000) return prev;
                     const m = new Map(prev);
-                    m.set(key, new Date());
+                    m.set(key, leaveDate);
                     return m;
                 });
             });
@@ -318,8 +346,10 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const subscribeToUser = useCallback((userId: string) => {
         if (!supabase) return;
         
-        if (trackedUsersRef.current.has(userId)) return;
-        trackedUsersRef.current.add(userId);
+        const count = trackedUsersRef.current.get(userId) || 0;
+        trackedUsersRef.current.set(userId, count + 1);
+
+        if (count > 0) return;
 
         supabase
             .from('user_presence')
@@ -346,10 +376,16 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const subscribeToUsers = useCallback((userIds: string[]) => {
         if (!supabase || userIds.length === 0) return;
 
-        const newIds = userIds.filter(id => !trackedUsersRef.current.has(id));
-        if (newIds.length === 0) return;
+        const newIds: string[] = [];
+        userIds.forEach(id => {
+            const count = trackedUsersRef.current.get(id) || 0;
+            trackedUsersRef.current.set(id, count + 1);
+            if (count === 0) {
+                newIds.push(id);
+            }
+        });
 
-        newIds.forEach(id => trackedUsersRef.current.add(id));
+        if (newIds.length === 0) return;
 
         supabase
             .from('user_presence')
@@ -376,7 +412,12 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, []);
 
     const unsubscribeFromUser = useCallback((userId: string) => {
-        trackedUsersRef.current.delete(userId);
+        const count = trackedUsersRef.current.get(userId) || 0;
+        if (count <= 1) {
+            trackedUsersRef.current.delete(userId);
+        } else {
+            trackedUsersRef.current.set(userId, count - 1);
+        }
     }, []);
 
     const isUserOnline = useCallback((userId: string): boolean => {
@@ -387,18 +428,26 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return lastSeenMap.get(userId) || null;
     }, [lastSeenMap]);
 
+    const providerValue = useMemo(() => ({
+        onlineUsers,
+        lastSeenMap,
+        subscribeToUser,
+        subscribeToUsers,
+        unsubscribeFromUser,
+        isUserOnline,
+        getLastSeen
+    }), [
+        onlineUsers,
+        lastSeenMap,
+        subscribeToUser,
+        subscribeToUsers,
+        unsubscribeFromUser,
+        isUserOnline,
+        getLastSeen
+    ]);
+
     return (
-        <PresenceContext.Provider
-            value={{
-                onlineUsers,
-                lastSeenMap,
-                subscribeToUser,
-                subscribeToUsers,
-                unsubscribeFromUser,
-                isUserOnline,
-                getLastSeen
-            }}
-        >
+        <PresenceContext.Provider value={providerValue}>
             {children}
         </PresenceContext.Provider>
     );

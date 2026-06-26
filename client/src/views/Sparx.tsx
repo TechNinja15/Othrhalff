@@ -37,6 +37,39 @@ interface Glimpse {
   glimpse_reactions: GlimpseReaction[];
 }
 
+interface GlimpseProgressBarProps {
+  idx: number;
+  activeStoryIndex: number;
+}
+
+const GlimpseProgressBar: React.FC<GlimpseProgressBarProps> = ({ idx, activeStoryIndex }) => {
+  const [animate, setAnimate] = useState(false);
+
+  useEffect(() => {
+    if (idx === activeStoryIndex) {
+      setAnimate(false);
+      // Wait for next frame/tick so browser registers the 0% state reset
+      const t = setTimeout(() => setAnimate(true), 20);
+      return () => clearTimeout(t);
+    }
+  }, [idx, activeStoryIndex]);
+
+  let width = '0%';
+  if (idx < activeStoryIndex) width = '100%';
+  else if (idx === activeStoryIndex && animate) width = '100%';
+
+  return (
+    <div className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
+      <div
+        className={`h-full bg-white ${
+          idx === activeStoryIndex && animate ? 'transition-all duration-[6000ms] ease-linear' : ''
+        }`}
+        style={{ width }}
+      />
+    </div>
+  );
+};
+
 export const Sparx: React.FC = () => {
   const { currentUser } = useAuth();
   const router = useRouter();
@@ -144,7 +177,6 @@ export const Sparx: React.FC = () => {
 
   // Active index of the currently viewed Glimpse card in the full-screen story viewer
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
-  const [storyProgress, setStoryProgress] = useState(0);
 
   // Viewed glimpses tracker
   const [viewedIds, setViewedIds] = useState<string[]>([]);
@@ -181,31 +213,22 @@ export const Sparx: React.FC = () => {
     }
   }, [activeStoryIndex, glimpses]);
 
-  // Auto-advance logic for story overlay
+  // Auto-advance logic for story overlay (single setTimeout instead of 100ms interval)
   useEffect(() => {
-    if (activeStoryIndex === null) {
-      setStoryProgress(0);
-      return;
-    }
+    if (activeStoryIndex === null) return;
 
-    setStoryProgress(0);
-
-    const interval = setInterval(() => {
-      setStoryProgress(prev => {
-        if (prev >= 100) {
-          // Trigger next story
-          if (activeStoryIndex < glimpses.length - 1) {
-            setActiveStoryIndex(activeStoryIndex + 1);
-          } else {
-            setActiveStoryIndex(null);
-          }
-          return 0;
+    const timer = setTimeout(() => {
+      setActiveStoryIndex(prev => {
+        if (prev === null) return null;
+        if (prev < glimpses.length - 1) {
+          return prev + 1;
+        } else {
+          return null;
         }
-        return prev + (100 / 60); // 60 ticks of 100ms = 6000ms (6 seconds)
       });
-    }, 100);
+    }, 6000);
 
-    return () => clearInterval(interval);
+    return () => clearTimeout(timer);
   }, [activeStoryIndex, glimpses.length]);
 
   const fetchLeaderboard = async () => {
@@ -451,28 +474,37 @@ export const Sparx: React.FC = () => {
       // Listen for updates on reactions in memory to avoid full-feed network fetches
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'glimpse_reactions' }, (payload) => {
         const newReaction = payload.new;
-        setGlimpses(prev => prev.map(g => {
-          if (g.id === newReaction.glimpse_id) {
-            const exists = g.glimpse_reactions?.some((r: any) => r.user_id === newReaction.user_id && r.reaction_type === newReaction.reaction_type);
-            if (!exists) {
-              return {
-                ...g,
-                glimpse_reactions: [...(g.glimpse_reactions || []), { id: newReaction.id, reaction_type: newReaction.reaction_type, user_id: newReaction.user_id }]
-              };
+        setGlimpses(prev => {
+          const exists = prev.some(g => g.id === newReaction.glimpse_id);
+          if (!exists) return prev;
+          return prev.map(g => {
+            if (g.id === newReaction.glimpse_id) {
+              const existsRx = g.glimpse_reactions?.some((r: any) => r.user_id === newReaction.user_id && r.reaction_type === newReaction.reaction_type);
+              if (!existsRx) {
+                return {
+                  ...g,
+                  glimpse_reactions: [...(g.glimpse_reactions || []), { id: newReaction.id, reaction_type: newReaction.reaction_type, user_id: newReaction.user_id }]
+                };
+              }
             }
-          }
-          return g;
-        }));
+            return g;
+          });
+        });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'glimpse_reactions' }, (payload) => {
         const oldReaction = payload.old;
         if (oldReaction?.id) {
-          setGlimpses(prev => prev.map(g => {
-            return {
-              ...g,
-              glimpse_reactions: (g.glimpse_reactions || []).filter((r: any) => r.id !== oldReaction.id)
-            };
-          }));
+          setGlimpses(prev => {
+            const affectedGlimpse = prev.find(g => (g.glimpse_reactions || []).some((r: any) => r.id === oldReaction.id));
+            if (!affectedGlimpse) return prev;
+            return prev.map(g => {
+              if (g.id !== affectedGlimpse.id) return g;
+              return {
+                ...g,
+                glimpse_reactions: (g.glimpse_reactions || []).filter((r: any) => r.id !== oldReaction.id)
+              };
+            });
+          });
         }
       })
       .subscribe();
@@ -906,22 +938,11 @@ export const Sparx: React.FC = () => {
           {/* Glimpse Progress Indicators at the Top */}
           <div className="absolute top-4 left-4 md:left-[104px] right-12 z-50 flex gap-1">
             {glimpses.map((_, idx) => (
-              <div key={idx} className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full bg-white ${
-                    (idx === activeStoryIndex && storyProgress > 0) 
-                      ? 'transition-all duration-100 ease-linear' 
-                      : ''
-                  }`}
-                  style={{
-                    width: idx < activeStoryIndex 
-                      ? '100%' 
-                      : idx === activeStoryIndex 
-                        ? `${storyProgress}%` 
-                        : '0%'
-                  }}
-                />
-              </div>
+              <GlimpseProgressBar
+                key={idx}
+                idx={idx}
+                activeStoryIndex={activeStoryIndex!}
+              />
             ))}
           </div>
 

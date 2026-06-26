@@ -195,6 +195,8 @@ export const Confessions: React.FC = () => {
                 if (currentUser && record.user_id === currentUser.id) return;
 
                 setConfessions(prev => {
+                    const exists = prev.some(c => c.id === confessionId);
+                    if (!exists) return prev;
                     const updated = prev.map(c => {
                         if (c.id !== confessionId) return c;
                         const newReactions = { ...c.reactions };
@@ -225,6 +227,8 @@ export const Confessions: React.FC = () => {
                 if (currentUser && record.user_id === currentUser.id) return;
 
                 setConfessions(prev => {
+                    const exists = prev.some(c => c.id === confessionId);
+                    if (!exists) return prev;
                     const updated = prev.map(c => {
                         if (c.id !== confessionId) return c;
                         if (expandedCommentsRef.current[confessionId]) {

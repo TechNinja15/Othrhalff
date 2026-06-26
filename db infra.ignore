@@ -486,90 +486,38 @@ create policy "Users can view their own matches" on public.matches
   using (((( SELECT auth.uid() AS uid) = user_a) OR (( SELECT auth.uid() AS uid) = user_b)))
 ;
 
--- Policy: Users can delete messages they sent on messages
-create policy "Users can delete messages they sent" on public.messages
-  for delete
-  to public
-  using ((( SELECT auth.uid() AS uid) = sender_id))
-;
-
--- Policy: Users can insert messages in their matches on messages
-create policy "Users can insert messages in their matches" on public.messages
-  for insert
-  to public
-  with check ((EXISTS ( SELECT 1
-   FROM matches
-  WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid)))))))
-;
-
--- Policy: Users can insert messages into their matches on messages
-create policy "Users can insert messages into their matches" on public.messages
-  for insert
-  to public
-  with check (((sender_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
-   FROM matches
-  WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid))))))))
-;
-
--- Policy: Users can insert messages to their matches on messages
-create policy "Users can insert messages to their matches" on public.messages
-  for insert
-  to public
-  with check (((sender_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
-   FROM matches
-  WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid))))))))
-;
-
--- Policy: Users can read messages in their matches on messages
-create policy "Users can read messages in their matches" on public.messages
+-- Policy: allow_select_messages on messages
+create policy "allow_select_messages" on public.messages
   for select
   to authenticated
-  using (true)
+  using ((EXISTS ( SELECT 1
+   FROM matches
+  WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid)))))))
 ;
 
--- Policy: Users can send messages to their matches on messages
-create policy "Users can send messages to their matches" on public.messages
+-- Policy: allow_insert_messages on messages
+create policy "allow_insert_messages" on public.messages
   for insert
-  to public
+  to authenticated
   with check (((sender_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
    FROM matches
   WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid))))))))
 ;
 
--- Policy: Users can update their own received messages on messages
-create policy "Users can update their own received messages" on public.messages
+-- Policy: allow_update_messages on messages
+create policy "allow_update_messages" on public.messages
   for update
-  to public
+  to authenticated
   using ((EXISTS ( SELECT 1
    FROM matches
   WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid)))))))
 ;
 
--- Policy: Users can view messages for their matches on messages
-create policy "Users can view messages for their matches" on public.messages
-  for select
-  to public
-  using ((EXISTS ( SELECT 1
-   FROM matches
-  WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid)))))))
-;
-
--- Policy: Users can view messages from their matches on messages
-create policy "Users can view messages from their matches" on public.messages
-  for select
-  to public
-  using ((EXISTS ( SELECT 1
-   FROM matches
-  WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid)))))))
-;
-
--- Policy: Users can view messages in their matches on messages
-create policy "Users can view messages in their matches" on public.messages
-  for select
-  to public
-  using ((EXISTS ( SELECT 1
-   FROM matches
-  WHERE ((matches.id = messages.match_id) AND ((matches.user_a = ( SELECT auth.uid() AS uid)) OR (matches.user_b = ( SELECT auth.uid() AS uid)))))))
+-- Policy: allow_delete_messages on messages
+create policy "allow_delete_messages" on public.messages
+  for delete
+  to authenticated
+  using ((( SELECT auth.uid() AS uid) = sender_id))
 ;
 
 -- Policy: Users can delete their own notifications on notifications
@@ -976,59 +924,48 @@ $function$;
 CREATE OR REPLACE FUNCTION public.get_matches_with_preview(current_user_id uuid)
  RETURNS TABLE(match_id uuid, partner_id uuid, partner_profile jsonb, last_message text, last_message_time timestamp with time zone, unread_count bigint)
  LANGUAGE plpgsql
+ SECURITY DEFINER
 AS $function$
 BEGIN
     RETURN QUERY
-    WITH blocked_ids AS (
-        SELECT blocked_id AS uid FROM blocked_users WHERE blocker_id = current_user_id
-        UNION
-        SELECT blocker_id AS uid FROM blocked_users WHERE blocked_id = current_user_id
-    ),
-    user_matches AS (
-        SELECT 
-            m.id as m_id,
-            CASE 
-                WHEN m.user_a = current_user_id THEN m.user_b 
-                ELSE m.user_a 
-            END as p_id,
-            m.created_at as m_created_at
-        FROM matches m
-        WHERE (m.user_a = current_user_id OR m.user_b = current_user_id)
-        AND CASE 
-                WHEN m.user_a = current_user_id THEN m.user_b 
-                ELSE m.user_a 
-            END NOT IN (SELECT uid FROM blocked_ids)
-    ),
-    latest_messages AS (
-        SELECT DISTINCT ON (msg.match_id)
-            msg.match_id,
-            msg.text as body,
-            msg.created_at as created_at
-        FROM messages msg
-        WHERE msg.match_id IN (SELECT m_id FROM user_matches)
-        ORDER BY msg.match_id, msg.created_at DESC
-    ),
-    unread_counts AS (
-        SELECT 
-            msg.match_id,
-            COUNT(*) as count
-        FROM messages msg
-        JOIN user_matches um ON msg.match_id = um.m_id
-        WHERE msg.sender_id = um.p_id
-        AND msg.is_read = FALSE
-        GROUP BY msg.match_id
+    WITH user_matches AS (
+        SELECT m.id AS m_id, m.user_b AS p_id, m.created_at AS m_created_at
+        FROM public.matches m
+        WHERE m.user_a = current_user_id
+        UNION ALL
+        SELECT m.id AS m_id, m.user_a AS p_id, m.created_at AS m_created_at
+        FROM public.matches m
+        WHERE m.user_b = current_user_id
     )
     SELECT 
-        um.m_id,
-        um.p_id,
-        to_jsonb(p.*),
-        COALESCE(lm.body, 'New Match!'),
-        COALESCE(lm.created_at, um.m_created_at),
-        COALESCE(uc.count, 0)
+        um.m_id AS match_id,
+        um.p_id AS partner_id,
+        to_jsonb(p.*) AS partner_profile,
+        COALESCE(lm.text, 'New Match!') AS last_message,
+        COALESCE(lm.created_at, um.m_created_at) AS last_message_time,
+        COALESCE(unread.count, 0)::bigint AS unread_count
     FROM user_matches um
-    JOIN profiles p ON p.id = um.p_id
-    LEFT JOIN latest_messages lm ON lm.match_id = um.m_id
-    LEFT JOIN unread_counts uc ON uc.match_id = um.m_id
+    JOIN public.profiles p ON p.id = um.p_id
+    LEFT JOIN LATERAL (
+        SELECT msg.text, msg.created_at
+        FROM public.messages msg
+        WHERE msg.match_id = um.m_id
+        ORDER BY msg.created_at DESC
+        LIMIT 1
+    ) lm ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS count
+        FROM public.messages msg
+        WHERE msg.match_id = um.m_id
+          AND msg.sender_id = um.p_id
+          AND msg.is_read = FALSE
+    ) unread ON TRUE
+    WHERE NOT EXISTS (
+        SELECT 1 
+        FROM public.blocked_users bu 
+        WHERE (bu.blocker_id = current_user_id AND bu.blocked_id = um.p_id)
+           OR (bu.blocked_id = current_user_id AND bu.blocker_id = um.p_id)
+    )
     ORDER BY COALESCE(lm.created_at, um.m_created_at) DESC;
 END;
 $function$;
@@ -1132,6 +1069,11 @@ CREATE OR REPLACE FUNCTION public.get_skipped_profiles(current_user_id uuid, mat
  SECURITY DEFINER
 AS $function$
 BEGIN
+  -- Security check: users can only fetch their own skipped profiles
+  IF auth.uid() != current_user_id THEN
+    RAISE EXCEPTION 'Access denied. You can only view your own skipped profiles.';
+  END IF;
+
   RETURN QUERY
   SELECT
     p.id,

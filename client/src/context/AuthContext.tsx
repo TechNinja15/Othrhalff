@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserProfile } from '../types';
 import { authService } from '../services/auth';
@@ -165,16 +165,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).catch(() => {});
   }, []);
 
-  const login = async (user: UserProfile) => {
-    clearAllCaches();
-    setCurrentUser(user);
-    setNeedsOnboarding(false);
-    // Non-blocking sync
-    authService.login(user).catch(err => console.error("Background sync error:", err));
-    // Sync token to SW for background push notification handling
-    syncTokenToSW();
-  };
-
   const clearAllCaches = useCallback(() => {
     if (typeof window !== 'undefined') {
       // 1. Clear session storage completely (safe for transient caches)
@@ -205,6 +195,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const login = useCallback(async (user: UserProfile) => {
+    clearAllCaches();
+    setCurrentUser(user);
+    setNeedsOnboarding(false);
+    // Non-blocking sync
+    authService.login(user).catch(err => console.error("Background sync error:", err));
+    // Sync token to SW for background push notification handling
+    syncTokenToSW();
+  }, [clearAllCaches, syncTokenToSW]);
+
   const handleCountdownComplete = useCallback(() => {
     setShowLogoutCountdown(false);
     setCurrentUser(null);
@@ -214,31 +214,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     router.push('/login');
   }, [clearAllCaches, clearSWToken, router]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setCurrentUser(null);
     clearAllCaches();
     clearSWToken();
     authService.logout();
-  };
+  }, [clearAllCaches, clearSWToken]);
 
-  const updateProfile = (updates: Partial<UserProfile>) => {
-    if (!currentUser) return;
-    const updatedUser = { ...currentUser, ...updates };
-    setCurrentUser(updatedUser);
-    // Non-blocking update
-    authService.login(updatedUser).catch(err => console.error("Profile update sync error:", err));
-  };
+  const updateProfile = useCallback((updates: Partial<UserProfile>) => {
+    setCurrentUser(prev => {
+      if (!prev) return null;
+      const updatedUser = { ...prev, ...updates };
+      // Non-blocking update
+      authService.login(updatedUser).catch(err => console.error("Profile update sync error:", err));
+      return updatedUser;
+    });
+  }, []);
+
+  const authContextValue = useMemo(() => ({
+    currentUser,
+    login,
+    logout,
+    updateProfile,
+    isAuthenticated: !!currentUser,
+    isLoading,
+    needsOnboarding
+  }), [currentUser, login, logout, updateProfile, isLoading, needsOnboarding]);
 
   return (
-    <AuthContext.Provider value={{
-      currentUser,
-      login,
-      logout,
-      updateProfile,
-      isAuthenticated: !!currentUser,
-      isLoading,
-      needsOnboarding
-    }}>
+    <AuthContext.Provider value={authContextValue}>
       {children}
       {showLogoutCountdown && (
         <ForceLogoutCountdown onComplete={handleCountdownComplete} />

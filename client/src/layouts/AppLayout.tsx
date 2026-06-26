@@ -23,11 +23,10 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { currentUser, needsOnboarding } = useAuth();
   const { isCallActive, appId, channelName, token, partnerName, partnerAvatar, callType, callSessionId, endCall } = useCall();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, unreadMessageCount } = useNotifications();
   const pathname = usePathname() || '';
   const router = useRouter();
 
-  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -40,51 +39,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       router.push('/onboarding');
     }
   }, [mounted, needsOnboarding, pathname, router]);
-
-  // Fetch real-time unread messages count for the chat badge (with 300ms debounce to protect database bandwidth)
-  useEffect(() => {
-    if (!currentUser || !supabase) return;
-
-    let debounceTimeout: NodeJS.Timeout | null = null;
-
-    const fetchUnreadCount = async () => {
-      try {
-        const { count, error } = await supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .neq('sender_id', currentUser.id)
-          .eq('is_read', false);
-
-        if (!error && count !== null) {
-          setUnreadMessageCount(count);
-        }
-      } catch (err) {
-        console.error('Error fetching unread messages count:', err);
-      }
-    };
-
-    const debouncedFetch = () => {
-      if (debounceTimeout) clearTimeout(debounceTimeout);
-      debounceTimeout = setTimeout(() => {
-        fetchUnreadCount();
-      }, 300);
-    };
-
-    fetchUnreadCount();
-
-    // Listen for changes in messages to update badge live
-    const uniqueChannelName = `unread-messages-count-layout-${Math.random().toString(36).substring(7)}`;
-    const channel = supabase.channel(uniqueChannelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        debouncedFetch();
-      })
-      .subscribe();
-
-    return () => {
-      if (debounceTimeout) clearTimeout(debounceTimeout);
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser]);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -104,8 +58,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   // Determine if we should show the StarField background animation
   const showStars =
-    ['/home', '/matches', '/notifications', '/confessions'].includes(pathname) ||
-    pathname.startsWith('/chat/');
+    ['/home', '/matches', '/notifications', '/confessions'].includes(pathname);
 
   if (!mounted || (!currentUser && !isPublicConfessions) || !isAuthenticatedPath) {
     return <>{children}</>;

@@ -36,10 +36,19 @@ export const Home: React.FC = () => {
     const [queue, setQueue] = useState<MatchProfile[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [quote] = useState(getRandomQuote());
-    const [dragX, setDragX] = useState(0);
-    const [dragY, setDragY] = useState(0);
-    const [startX, setStartX] = useState(0);
-    const [startY, setStartY] = useState(0);
+    const dragXRef = useRef(0);
+    const dragYRef = useRef(0);
+    const startXRef = useRef(0);
+    const startYRef = useRef(0);
+    const isDraggingRef = useRef(false);
+    const updateScheduledRef = useRef(false);
+
+    // Element refs
+    const cardGlowRef = useRef<HTMLDivElement>(null);
+    const likeStampRef = useRef<HTMLDivElement>(null);
+    const nopeStampRef = useRef<HTMLDivElement>(null);
+    const bgBlob1Ref = useRef<HTMLDivElement>(null);
+    const bgBlob2Ref = useRef<HTMLDivElement>(null);
 
     const [pullDistance, setPullDistance] = useState(0);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -51,8 +60,7 @@ export const Home: React.FC = () => {
     const { unreadCount } = useNotifications();
     const preloadedImages = useRef<Set<string>>(new Set());
 
-    const [isDragging, setIsDragging] = useState(false);
-    const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+
     const [showSuccessBurst, setShowSuccessBurst] = useState(false);
     const [isSwiping, setIsSwiping] = useState(false);
     const [isRecycleMode, setIsRecycleMode] = useState(false);
@@ -333,13 +341,13 @@ export const Home: React.FC = () => {
         const card = cardRef.current;
         if (!card) return;
         const onTouchMove = (e: TouchEvent) => {
-            if (isDragging) {
+            if (isDraggingRef.current) {
                 e.preventDefault();
             }
         };
         card.addEventListener('touchmove', onTouchMove, { passive: false });
         return () => card.removeEventListener('touchmove', onTouchMove);
-    }, [isDragging, currentProfile]);
+    }, [currentProfile]);
 
     const handleGlobalTouchStart = (e: React.TouchEvent) => {
         pullStartY.current = e.touches[0].clientY;
@@ -379,19 +387,78 @@ export const Home: React.FC = () => {
         pullStartY.current = null;
     };
 
+    const updateDOM = () => {
+        updateScheduledRef.current = false;
+        
+        const dragX = dragXRef.current;
+        const dragY = dragYRef.current;
+        const isDragging = isDraggingRef.current;
+
+        const rotateY = typeof window !== 'undefined' ? (dragX / window.innerWidth) * 25 : 0;
+        const rotateZ = typeof window !== 'undefined' ? (dragX / window.innerWidth) * 15 : 0;
+        const scale = isDragging ? 1.02 : 1;
+        const likeOpacity = Math.max(0, Math.min((dragX - 30) / 80, 1));
+        const nopeOpacity = Math.max(0, Math.min((-dragX - 30) / 80, 1));
+
+        // Apply transformations to Active Card
+        if (cardRef.current) {
+            cardRef.current.style.transform = `translateX(${dragX}px) translateY(${dragY}px) rotateY(${rotateY}deg) rotateZ(${rotateZ}deg) scale(${scale})`;
+            cardRef.current.style.transition = isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            cardRef.current.style.cursor = isDragging ? 'grabbing' : 'grab';
+        }
+
+        // Apply box shadow to Card Glow
+        if (cardGlowRef.current) {
+            cardGlowRef.current.style.boxShadow = dragX > 50
+                ? 'inset 0 0 80px rgba(34,197,94,0.4), 0 0 60px rgba(34,197,94,0.3)'
+                : dragX < -50
+                    ? 'inset 0 0 80px rgba(239,68,68,0.4), 0 0 60px rgba(239,68,68,0.3)'
+                    : 'none';
+        }
+
+        // Apply stamps opacity & scale
+        if (likeStampRef.current) {
+            likeStampRef.current.style.opacity = String(likeOpacity);
+            likeStampRef.current.style.transform = `scale(${0.8 + likeOpacity * 0.4}) rotate(-12deg)`;
+        }
+        if (nopeStampRef.current) {
+            nopeStampRef.current.style.opacity = String(nopeOpacity);
+            nopeStampRef.current.style.transform = `scale(${0.8 + nopeOpacity * 0.4}) rotate(12deg)`;
+        }
+
+        // Apply transformations to Background Blobs
+        if (bgBlob1Ref.current) {
+            bgBlob1Ref.current.style.background = dragX > 50
+                ? 'radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 70%)'
+                : dragX < -50
+                    ? 'radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 70%)'
+                    : 'radial-gradient(circle, rgba(255,0,127,0.08) 0%, transparent 70%)';
+            bgBlob1Ref.current.style.transform = `translate(${dragX * 0.1}px, ${dragY * 0.1}px)`;
+        }
+        if (bgBlob2Ref.current) {
+            bgBlob2Ref.current.style.transform = `translate(${-dragX * 0.05}px, ${-dragY * 0.05}px)`;
+        }
+    };
+
+    const scheduleUpdate = () => {
+        if (updateScheduledRef.current) return;
+        updateScheduledRef.current = true;
+        requestAnimationFrame(updateDOM);
+    };
+
     // Enhanced touch handlers with spring physics feel
     const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
         if ('touches' in e) e.stopPropagation();
-        setIsDragging(true);
+        isDraggingRef.current = true;
         const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-        setStartX(clientX);
-        setStartY(clientY);
+        startXRef.current = clientX;
+        startYRef.current = clientY;
     };
 
     const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
         if ('touches' in e) e.stopPropagation();
-        if (!isDragging) return;
+        if (!isDraggingRef.current) return;
         // Prevent browser scroll/refresh while swiping
         if ('touches' in e) {
             e.preventDefault();
@@ -399,24 +466,22 @@ export const Home: React.FC = () => {
         const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
 
-        const deltaX = clientX - startX;
-        const deltaY = clientY - startY;
+        const deltaX = clientX - startXRef.current;
+        const deltaY = clientY - startYRef.current;
 
         // Spring-like resistance at edges
         const resistance = 0.8;
-        setDragX(deltaX * resistance);
-        setDragY(deltaY * 0.3);
+        dragXRef.current = deltaX * resistance;
+        dragYRef.current = deltaY * 0.3;
 
-        // Update swipe direction for background effect
-        if (deltaX > 50) setSwipeDirection('right');
-        else if (deltaX < -50) setSwipeDirection('left');
-        else setSwipeDirection(null);
+        scheduleUpdate();
     };
 
     const endSwipe = (e?: React.TouchEvent | React.MouseEvent) => {
         if (e && 'touches' in e) e.stopPropagation();
-        setIsDragging(false);
+        isDraggingRef.current = false;
         const threshold = window.innerWidth * 0.2;
+        const dragX = dragXRef.current;
 
         if (dragX > threshold) {
             handleSwipe('right');
@@ -424,9 +489,32 @@ export const Home: React.FC = () => {
             handleSwipe('left');
         } else {
             // Spring back animation
-            setDragX(0);
-            setDragY(0);
-            setSwipeDirection(null);
+            dragXRef.current = 0;
+            dragYRef.current = 0;
+            
+            if (cardRef.current) {
+                cardRef.current.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                cardRef.current.style.transform = 'translateX(0px) translateY(0px) rotateY(0deg) rotateZ(0deg) scale(1)';
+                cardRef.current.style.cursor = 'grab';
+            }
+            if (bgBlob1Ref.current) {
+                bgBlob1Ref.current.style.transform = 'translate(0px, 0px)';
+                bgBlob1Ref.current.style.background = 'radial-gradient(circle, rgba(255,0,127,0.08) 0%, transparent 70%)';
+            }
+            if (bgBlob2Ref.current) {
+                bgBlob2Ref.current.style.transform = 'translate(0px, 0px)';
+            }
+            if (likeStampRef.current) {
+                likeStampRef.current.style.opacity = '0';
+                likeStampRef.current.style.transform = 'scale(0.8) rotate(-12deg)';
+            }
+            if (nopeStampRef.current) {
+                nopeStampRef.current.style.opacity = '0';
+                nopeStampRef.current.style.transform = 'scale(0.8) rotate(12deg)';
+            }
+            if (cardGlowRef.current) {
+                cardGlowRef.current.style.boxShadow = 'none';
+            }
         }
     };
 
@@ -438,14 +526,30 @@ export const Home: React.FC = () => {
         const targetId = currentProfile.id;
         const action = direction === 'right' ? 'like' : 'pass';
 
-        // If in recycle mode, swiping left just touches the timestamp to move to back of queue
-        // Swiping right moves to likes
-
-
         // Cinematic exit animation
         const offScreenX = direction === 'right' ? window.innerWidth * 1.5 : -window.innerWidth * 1.5;
-        setDragX(offScreenX);
-        setDragY(direction === 'right' ? -100 : 100);
+        const offScreenY = direction === 'right' ? -100 : 100;
+        
+        dragXRef.current = offScreenX;
+        dragYRef.current = offScreenY;
+        isDraggingRef.current = false;
+        
+        if (cardRef.current) {
+            const rotateY = (offScreenX / window.innerWidth) * 25;
+            const rotateZ = (offScreenX / window.innerWidth) * 15;
+            cardRef.current.style.transition = 'transform 0.3s ease-in';
+            cardRef.current.style.transform = `translateX(${offScreenX}px) translateY(${offScreenY}px) rotateY(${rotateY}deg) rotateZ(${rotateZ}deg) scale(1)`;
+        }
+        
+        if (bgBlob1Ref.current) {
+            bgBlob1Ref.current.style.transform = 'translate(0px, 0px)';
+        }
+        if (bgBlob2Ref.current) {
+            bgBlob2Ref.current.style.transform = 'translate(0px, 0px)';
+        }
+        if (likeStampRef.current) likeStampRef.current.style.opacity = '0';
+        if (nopeStampRef.current) nopeStampRef.current.style.opacity = '0';
+        if (cardGlowRef.current) cardGlowRef.current.style.boxShadow = 'none';
 
         // Show success burst for likes
         if (direction === 'right') {
@@ -457,9 +561,13 @@ export const Home: React.FC = () => {
         }
 
         setTimeout(async () => {
-            setDragX(0);
-            setDragY(0);
-            setSwipeDirection(null);
+            dragXRef.current = 0;
+            dragYRef.current = 0;
+            
+            if (cardRef.current) {
+                cardRef.current.style.transition = 'none';
+                cardRef.current.style.transform = 'translateX(0px) translateY(0px) rotateY(0deg) rotateZ(0deg) scale(1)';
+            }
 
             // 1. UPDATE STATE & CACHE (Optimistic)
             const nextQueue = queue.filter(p => p.id !== targetId);
@@ -493,13 +601,6 @@ export const Home: React.FC = () => {
         }, 200);
     };
 
-    // Calculate 3D transforms
-    const rotateY = typeof window !== 'undefined' ? (dragX / window.innerWidth) * 25 : 0;
-    const rotateZ = typeof window !== 'undefined' ? (dragX / window.innerWidth) * 15 : 0;
-    const scale = isDragging ? 1.02 : 1;
-    const likeOpacity = Math.max(0, Math.min((dragX - 30) / 80, 1));
-    const nopeOpacity = Math.max(0, Math.min((-dragX - 30) / 80, 1));
-
     if (!currentUser) return null;
 
     return (
@@ -528,23 +629,17 @@ export const Home: React.FC = () => {
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
                 {/* Reactive blob - shifts with swipe direction */}
                 <div
+                    ref={bgBlob1Ref}
                     className="absolute top-[-30%] left-[-30%] w-[80%] h-[80%] rounded-full blur-[120px] transition-all duration-500 ease-out"
                     style={{
-                        background: swipeDirection === 'right'
-                            ? 'radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 70%)'
-                            : swipeDirection === 'left'
-                                ? 'radial-gradient(circle, rgba(239,68,68,0.15) 0%, transparent 70%)'
-                                : 'radial-gradient(circle, rgba(255,0,127,0.08) 0%, transparent 70%)',
-                        transform: `translate(${dragX * 0.1}px, ${dragY * 0.1}px)`
+                        background: 'radial-gradient(circle, rgba(255,0,127,0.08) 0%, transparent 70%)'
                     }}
                 />
 
                 {/* Secondary ambient blob */}
                 <div
+                    ref={bgBlob2Ref}
                     className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full blur-[100px] bg-gradient-to-t from-purple-900/10 to-transparent transition-transform duration-700"
-                    style={{
-                        transform: `translate(${-dragX * 0.05}px, ${-dragY * 0.05}px)`
-                    }}
                 />
 
                 {/* Floating particles */}
@@ -766,25 +861,18 @@ export const Home: React.FC = () => {
                                 onMouseDown={handleTouchStart}
                                 onMouseMove={handleTouchMove}
                                 onMouseUp={endSwipe}
-                                onMouseLeave={() => isDragging && endSwipe()}
+                                onMouseLeave={() => isDraggingRef.current && endSwipe()}
                                 style={{
-                                    transform: `translateX(${dragX}px) translateY(${dragY}px) rotateY(${rotateY}deg) rotateZ(${rotateZ}deg) scale(${scale})`,
-                                    transition: isDragging ? 'none' : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
                                     transformStyle: 'preserve-3d',
-                                    cursor: isDragging ? 'grabbing' : 'grab'
+                                    transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                                    cursor: 'grab'
                                 }}
                                 className="absolute top-0 bottom-24 inset-x-0 rounded-[28px] overflow-hidden z-10 shadow-[0_25px_80px_-15px_rgba(0,0,0,0.9)]"
                             >
                                 {/* Card glow */}
                                 <div
-                                    className="absolute inset-0 z-20 pointer-events-none transition-opacity duration-200 rounded-[28px]"
-                                    style={{
-                                        boxShadow: swipeDirection === 'right'
-                                            ? 'inset 0 0 80px rgba(34,197,94,0.4), 0 0 60px rgba(34,197,94,0.3)'
-                                            : swipeDirection === 'left'
-                                                ? 'inset 0 0 80px rgba(239,68,68,0.4), 0 0 60px rgba(239,68,68,0.3)'
-                                                : 'none'
-                                    }}
+                                    ref={cardGlowRef}
+                                    className="absolute inset-0 z-20 pointer-events-none rounded-[28px] transition-all duration-200"
                                 />
 
                                 {/* Image */}
@@ -799,16 +887,18 @@ export const Home: React.FC = () => {
 
                                 {/* LIKE Stamp */}
                                 <div
-                                    className="absolute top-8 left-6 z-30 transition-all duration-200"
-                                    style={{ opacity: likeOpacity, transform: `scale(${0.8 + likeOpacity * 0.4}) rotate(-12deg)` }}
+                                    ref={likeStampRef}
+                                    className="absolute top-8 left-6 z-30 opacity-0 transition-all duration-200"
+                                    style={{ transform: 'scale(0.8) rotate(-12deg)' }}
                                 >
                                     <div className="border-[5px] border-green-400 text-green-400 font-black text-3xl px-3 py-1.5 rounded-lg bg-green-400/10 backdrop-blur-sm shadow-[0_0_40px_rgba(34,197,94,0.6)]">LIKE</div>
                                 </div>
 
                                 {/* NOPE Stamp */}
                                 <div
-                                    className="absolute top-8 right-6 z-30 transition-all duration-200"
-                                    style={{ opacity: nopeOpacity, transform: `scale(${0.8 + nopeOpacity * 0.4}) rotate(12deg)` }}
+                                    ref={nopeStampRef}
+                                    className="absolute top-8 right-6 z-30 opacity-0 transition-all duration-200"
+                                    style={{ transform: 'scale(0.8) rotate(12deg)' }}
                                 >
                                     <div className="border-[5px] border-red-400 text-red-400 font-black text-3xl px-3 py-1.5 rounded-lg bg-red-400/10 backdrop-blur-sm shadow-[0_0_40px_rgba(239,68,68,0.6)]">NOPE</div>
                                 </div>
