@@ -75,7 +75,6 @@ export const Onboarding: React.FC = () => {
           .single();
 
         if (existingProfile && !error) {
-<<<<<<< HEAD
           // Check if old user needs to set a username and password
           if (!existingProfile.username) {
             setNeedsMigration(true);
@@ -103,13 +102,6 @@ export const Onboarding: React.FC = () => {
           const appUser: UserProfile = {
             id: existingProfile.id,
             username: existingProfile.username,
-=======
-          // Profile exists! Skip onboarding and redirect to home
-          // Missing username can be set up later in the Account settings (Profile view)
-          const appUser: UserProfile = {
-            id: existingProfile.id,
-            username: existingProfile.username || undefined,
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             anonymousId: existingProfile.anonymous_id,
             realName: existingProfile.real_name,
             gender: existingProfile.gender,

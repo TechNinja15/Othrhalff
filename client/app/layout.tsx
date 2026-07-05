@@ -7,17 +7,8 @@ import '../src/index.css';
 const inter = { className: '' };
 
 export const metadata: Metadata = {
-<<<<<<< HEAD
   title: 'OthrHalff',
   description: 'Where anonymous meets destiny.',
-=======
-  metadataBase: new URL('https://othrhalff.in'),
-  title: 'OthrHalff',
-  description: 'Where anonymous meets destiny.',
-  alternates: {
-    canonical: '/',
-  },
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 };
 
 export default function RootLayout({

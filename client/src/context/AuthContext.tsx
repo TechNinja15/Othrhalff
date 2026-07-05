@@ -1,17 +1,8 @@
-<<<<<<< HEAD
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-=======
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 import { UserProfile } from '../types';
 import { authService } from '../services/auth';
 import { supabase } from '../lib/supabase';
 import ForceLogoutCountdown from '../components/ForceLogoutCountdown';
-<<<<<<< HEAD
-=======
-import { db } from '../lib/db';
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 
 interface AuthContextType {
   currentUser: UserProfile | null;
@@ -26,10 +17,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-<<<<<<< HEAD
-=======
-  const router = useRouter();
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     if (typeof window !== 'undefined') {
       return authService.getCurrentUser();
@@ -63,17 +50,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. SLOW (Background): Verify with Supabase for updates/security
       if (supabase) {
         try {
-<<<<<<< HEAD
           const { data: { session } } = await supabase.auth.getSession().catch(err => {
             if (err.name === 'AbortError' || err.message.includes('AbortError')) {
                 console.log('Ignored AbortError during getSession');
-=======
-          let isAborted = false;
-          const { data: { session } } = await supabase.auth.getSession().catch(err => {
-            if (err.name === 'AbortError' || err.message.includes('AbortError')) {
-                console.log('Ignored AbortError during getSession');
-                isAborted = true;
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             } else {
                 throw err;
             }
@@ -83,19 +62,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // If no session, try refreshing (mobile browsers often lose the access token
           // while backgrounded, but the refresh token is still valid)
           let activeSession = session;
-<<<<<<< HEAD
           if (!activeSession && localUser) {
-=======
-          if (!activeSession && localUser && !isAborted) {
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             console.log('No session found, attempting token refresh...');
             const { data: refreshData } = await supabase.auth.refreshSession().catch(err => {
                 if (err.name === 'AbortError' || err.message.includes('AbortError')) {
                     console.log('Ignored AbortError during refreshSession');
-<<<<<<< HEAD
-=======
-                    isAborted = true;
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
                 } else {
                     throw err;
                 }
@@ -104,14 +75,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             activeSession = refreshData?.session ?? null;
           }
 
-<<<<<<< HEAD
-=======
-          if (isAborted) {
-            console.log('Aborted getSession/refreshSession background call, skipping auth state updates');
-            return;
-          }
-
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
           if (activeSession?.user) {
             // Fetch fresh profile
             const { data: profile, error } = await supabase
@@ -121,13 +84,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .single();
 
             if (profile && !error) {
-<<<<<<< HEAD
               if (!profile.real_name || !profile.university) {
                 setNeedsOnboarding(true);
               }
 
-=======
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
               const appUser: UserProfile = {
                 id: profile.id,
                 username: profile.username,
@@ -198,7 +158,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).catch(() => {});
   }, []);
 
-<<<<<<< HEAD
   const login = async (user: UserProfile) => {
     setCurrentUser(user);
     setNeedsOnboarding(false);
@@ -208,47 +167,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('otherhalf_confessions_expiry_campus_v4');
       localStorage.removeItem('otherhalf_confessions_expiry_global_v4');
     }
-=======
-  const clearAllCaches = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      // 1. Clear session storage completely (safe for transient caches)
-      sessionStorage.clear();
-
-      // 2. Clear specific user/session-scoped keys from localStorage
-      const prefixesToRemove = ['otherhalf_', 'othrhalff_', 'deleted_messages_', 'cleared_chat_'];
-      const specificKeysToRemove = ['viewed_glimpse_ids'];
-
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key) {
-          const shouldRemove = prefixesToRemove.some(prefix => key.startsWith(prefix)) ||
-                              specificKeysToRemove.includes(key);
-          if (shouldRemove) {
-            localStorage.removeItem(key);
-          }
-        }
-      }
-
-      // 3. Clear IndexedDB tables
-      try {
-        db.messages.clear();
-        db.profiles.clear();
-      } catch (e) {
-        console.error('Failed to clear IndexedDB:', e);
-      }
-    }
-  }, []);
-
-  const login = useCallback(async (user: UserProfile) => {
-    clearAllCaches();
-    setCurrentUser(user);
-    setNeedsOnboarding(false);
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     // Non-blocking sync
     authService.login(user).catch(err => console.error("Background sync error:", err));
     // Sync token to SW for background push notification handling
     syncTokenToSW();
-<<<<<<< HEAD
   };
 
   const clearAllCaches = useCallback(() => {
@@ -274,17 +196,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clearAllCaches, clearSWToken]);
 
   const logout = () => {
-=======
-  }, [clearAllCaches, syncTokenToSW]);
-
-  const handleCountdownComplete = useCallback(() => {
-    setShowLogoutCountdown(false);
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     setCurrentUser(null);
     clearAllCaches();
     clearSWToken();
     authService.logout();
-<<<<<<< HEAD
   };
 
   const updateProfile = (updates: Partial<UserProfile>) => {
@@ -305,40 +220,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading,
       needsOnboarding
     }}>
-=======
-    router.push('/login');
-  }, [clearAllCaches, clearSWToken, router]);
-
-  const logout = useCallback(() => {
-    setCurrentUser(null);
-    clearAllCaches();
-    clearSWToken();
-    authService.logout();
-  }, [clearAllCaches, clearSWToken]);
-
-  const updateProfile = useCallback((updates: Partial<UserProfile>) => {
-    setCurrentUser(prev => {
-      if (!prev) return null;
-      const updatedUser = { ...prev, ...updates };
-      // Non-blocking update
-      authService.login(updatedUser).catch(err => console.error("Profile update sync error:", err));
-      return updatedUser;
-    });
-  }, []);
-
-  const authContextValue = useMemo(() => ({
-    currentUser,
-    login,
-    logout,
-    updateProfile,
-    isAuthenticated: !!currentUser,
-    isLoading,
-    needsOnboarding
-  }), [currentUser, login, logout, updateProfile, isLoading, needsOnboarding]);
-
-  return (
-    <AuthContext.Provider value={authContextValue}>
->>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
       {children}
       {showLogoutCountdown && (
         <ForceLogoutCountdown onComplete={handleCountdownComplete} />
