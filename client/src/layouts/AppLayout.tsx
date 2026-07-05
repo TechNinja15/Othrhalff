@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useCall } from '../context/CallContext';
 import { useNotifications } from '../context/NotificationContext';
-import { Ghost, Search, MessageCircle, Bell, CalendarHeart, User, MessageSquarePlus, Sparkles, MoreHorizontal, Zap } from 'lucide-react';
+import { Ghost, Search, MessageCircle, Bell, CalendarHeart, User, MessageSquarePlus, Sparkles, MoreHorizontal, Zap, Gamepad2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { StarField } from '../components/StarField';
 import { supabase } from '../lib/supabase';
@@ -47,14 +47,26 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     const fetchUnreadCount = async () => {
       try {
-        const { count, error } = await supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .neq('sender_id', currentUser.id)
-          .eq('is_read', false);
+        // First get active matches for the user
+        const { data: matches } = await supabase
+          .from('matches')
+          .select('id')
+          .or(`user_a.eq.${currentUser.id},user_b.eq.${currentUser.id}`);
 
-        if (!error && count !== null) {
-          setUnreadMessageCount(count);
+        if (matches && matches.length > 0) {
+          const matchIds = matches.map(m => m.id);
+          const { count, error } = await supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .in('match_id', matchIds)
+            .neq('sender_id', currentUser.id)
+            .eq('is_read', false);
+
+          if (!error && count !== null) {
+            setUnreadMessageCount(count);
+          }
+        } else {
+          setUnreadMessageCount(0);
         }
       } catch (err) {
         console.error('Error fetching unread messages count:', err);
@@ -118,25 +130,31 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     { path: '/profile', icon: User, label: 'My Profile' },
   ];
 
+  const isHome = pathname === '/home';
+
   return (
     <div className="flex h-[100dvh] bg-black text-white font-sans overflow-hidden selection:bg-neon selection:text-white">
+      {/* Desktop Sidebar Placeholder to prevent layout shift */}
+      <div className={`hidden md:block shrink-0 h-full bg-black z-10 transition-[width] duration-300 ease-in-out ${isHome ? 'w-[280px]' : 'w-[88px]'}`} />
+
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-[280px] flex-col border-r border-gray-900 bg-black z-20 relative">
-        {/* Brand Header */}
-        <div className="p-8 pb-4">
+      <aside className={`hidden md:flex transition-[width] duration-300 ease-in-out flex-col bg-black z-50 absolute left-0 top-0 bottom-0 overflow-hidden group/sidebar ${isHome ? 'w-[280px] shadow-[4px_0_24px_rgba(0,0,0,0.5)]' : 'w-[88px] hover:w-[280px] group-hover/sidebar:shadow-[4px_0_24px_rgba(0,0,0,0.5)]'}`}>
+        <div className="w-full flex flex-col h-full">
+          {/* Brand Header */}
+        <div className={`p-6 pb-4 flex transition-all duration-300 ${isHome ? 'p-8 justify-start' : 'group-hover/sidebar:p-8 justify-center group-hover/sidebar:justify-start'}`}>
           <div
             role="button"
             tabIndex={0}
-            className="group flex items-center gap-3 cursor-pointer select-none"
+            className={`group flex items-center cursor-pointer select-none transition-all duration-300 ${isHome ? 'gap-3' : 'gap-0 group-hover/sidebar:gap-3'}`}
             onClick={() => handleNavClick('/home')}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavClick('/home'); } }}
             aria-label="Go to home"
           >
-            <div className="relative">
+            <div className="relative shrink-0">
               <Ghost className="w-8 h-8 text-neon drop-shadow-[0_0_8px_rgba(255,0,127,0.5)] group-hover:rotate-12 transition-transform duration-300" />
               <Sparkles className="w-3 h-3 text-white absolute -top-1 -right-1 animate-pulse" />
             </div>
-            <div className="flex flex-col">
+            <div className={`flex flex-col overflow-hidden transition-all duration-300 whitespace-nowrap ${isHome ? 'max-w-[200px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[200px] group-hover/sidebar:opacity-100'}`}>
               <h1 className="text-2xl font-black text-white tracking-tighter uppercase leading-none flex gap-1">
                 <span>Othr</span>
                 <span className="text-neon">Halff</span>
@@ -149,8 +167,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
-          <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-4 mb-4">
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar overflow-x-hidden">
+          <div className={`text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-4 overflow-hidden transition-all duration-300 whitespace-nowrap ${isHome ? 'max-w-[200px] max-h-[20px] px-4 opacity-100' : 'opacity-0 max-h-0 max-w-0 group-hover/sidebar:max-w-[200px] group-hover/sidebar:max-h-[20px] group-hover/sidebar:px-4 group-hover/sidebar:opacity-100'}`}>
             Menu
           </div>
 
@@ -160,7 +178,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               <button
                 key={item.path}
                 onClick={() => handleNavClick(item.path)}
-                className={`w-full relative group flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-300 ease-out border overflow-hidden
+                className={`w-full relative group flex items-center rounded-2xl transition-all duration-300 ease-out border overflow-hidden ${isHome ? 'justify-start gap-4 p-3 px-5 py-3.5' : 'justify-center group-hover/sidebar:justify-start gap-0 group-hover/sidebar:gap-4 p-3 group-hover/sidebar:px-5 group-hover/sidebar:py-3.5'}
                   ${active
                     ? 'bg-gray-900/80 border-neon/30 text-white shadow-[0_0_20px_rgba(255,0,127,0.1)]'
                     : 'bg-transparent border-transparent text-gray-500 hover:bg-gray-900/50 hover:text-gray-200 hover:border-gray-800'
@@ -168,7 +186,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               >
                 {/* Active Indicator Line */}
                 {active && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-neon rounded-r-full shadow-[0_0_10px_#ff007f]" />
+                  <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-1 bg-neon rounded-t-full shadow-[0_0_10px_#ff007f] transition-all duration-300 ${isHome ? 'w-4/5' : 'w-8 group-hover/sidebar:w-4/5'}`} />
                 )}
 
                 {/* Hover Gradient Background */}
@@ -176,17 +194,17 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
                 {/* Icon */}
                 <item.icon
-                  className={`w-5 h-5 relative z-10 transition-transform duration-300 ${active ? 'text-neon scale-110 drop-shadow-[0_0_5px_rgba(255,0,127,0.5)]' : 'group-hover:scale-110 group-hover:text-gray-300'}`}
+                  className={`w-5 h-5 shrink-0 relative z-10 transition-transform duration-300 ${active ? 'text-neon scale-110 drop-shadow-[0_0_5px_rgba(255,0,127,0.5)]' : 'group-hover:scale-110 group-hover:text-gray-300'}`}
                   strokeWidth={active ? 2.5 : 2}
                 />
 
                 {/* Label */}
-                <span className={`text-sm font-bold tracking-wide relative z-10 ${active ? 'text-white' : ''}`}>
+                <span className={`text-sm font-bold tracking-wide relative z-10 overflow-hidden transition-all duration-300 whitespace-nowrap ${active ? 'text-white' : ''} ${isHome ? 'max-w-[200px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[200px] group-hover/sidebar:opacity-100'}`}>
                   {item.label}
                 </span>
 
                 {/* Badges/Indicators */}
-                <div className="ml-auto relative z-10 flex items-center gap-2">
+                <div className={`ml-auto relative z-10 flex items-center gap-2 overflow-hidden transition-all duration-300 whitespace-nowrap ${isHome ? 'max-w-[50px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[50px] group-hover/sidebar:opacity-100'}`}>
                   {item.badge && (
                     <span className="bg-neon text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(255,0,127,0.4)]">
                       {item.badge}
@@ -212,14 +230,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             onClick={() => handleNavClick('/profile')}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavClick('/profile'); } }}
             aria-label="Go to your profile"
-            className="relative group p-3 rounded-2xl bg-gradient-to-b from-black to-black border border-gray-800 hover:border-neon/30 transition-all duration-300 cursor-pointer overflow-hidden"
+            className={`relative group rounded-2xl bg-gradient-to-b from-black to-black border border-gray-800 hover:border-neon/30 transition-all duration-300 cursor-pointer overflow-hidden flex items-center ${isHome ? 'p-3 justify-start' : 'p-2 group-hover/sidebar:p-3 justify-center group-hover/sidebar:justify-start'}`}
           >
             {/* Glow Effect */}
             <div className="absolute inset-0 bg-neon/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-            <div className="flex items-center gap-3 relative z-10">
+            <div className={`flex items-center relative z-10 transition-all duration-300 ${isHome ? 'gap-3' : 'gap-0 group-hover/sidebar:gap-3'}`}>
               {/* Avatar */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-700 group-hover:border-neon transition-colors duration-300">
                   {currentUser?.avatar ? (
                     <img src={getOptimizedUrl(currentUser.avatar, 64)} alt="Profile" className="w-full h-full object-cover" />
@@ -233,7 +251,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               </div>
 
               {/* Info */}
-              <div className="flex-1 overflow-hidden">
+              <div className={`overflow-hidden transition-all duration-300 whitespace-nowrap ${isHome ? 'max-w-[150px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[150px] group-hover/sidebar:opacity-100'}`}>
                 <p className="text-sm font-bold text-white truncate group-hover:text-neon transition-colors">
                   {currentUser?.realName || 'Anonymous'}
                 </p>
@@ -246,72 +264,119 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               </div>
 
               {/* Options Icon */}
-              <button aria-label="Profile options" className="text-gray-600 hover:text-white transition-colors">
+              <button aria-label="Profile options" className={`text-gray-600 hover:text-white transition-colors duration-300 shrink-0 overflow-hidden ${isHome ? 'max-w-[20px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[20px] group-hover/sidebar:opacity-100'}`}>
                 <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
           </div>
+        </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col relative min-w-0 bg-black">
         {showStars && <StarField />}
+        
+        {/* Mobile Top-Left Profile Picture */}
+        {isHome && currentUser && (
+          <div className="md:hidden absolute top-4 left-4 z-50">
+            <button 
+              onClick={() => handleNavClick('/profile')} 
+              className="relative block rounded-full shadow-lg"
+              aria-label="Go to your profile"
+            >
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-700 active:scale-95 transition-transform duration-200 bg-gray-900">
+                {currentUser?.avatar ? (
+                  <img src={getOptimizedUrl(currentUser.avatar, 64)} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">{currentUser?.anonymousId ? currentUser.anonymousId.slice(-2) : '??'}</span>
+                  </div>
+                )}
+              </div>
+              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-black rounded-full shadow-md"></div>
+            </button>
+          </div>
+        )}
+
         <div className="flex-1 overflow-hidden relative w-full h-full z-10 bg-transparent layout-content-wrapper">
           {children}
         </div>
 
         {/* Mobile Bottom Nav */}
         {!pathname.includes('/chat/') && (
-          <nav className="md:hidden h-20 bg-black/90 backdrop-blur border-t border-gray-900 flex justify-around items-center px-2 z-40 fixed bottom-0 left-0 right-0 pb-safe">
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 pb-safe pointer-events-none">
+            {/* The main bar background */}
+            <div className="absolute bottom-0 left-0 right-0 h-16 bg-black/95 backdrop-blur-md border-t-[1.5px] border-gray-800 pointer-events-auto" />
+            
+            {/* The center bump */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-20 h-20 bg-black/95 backdrop-blur-md rounded-full border-t-[1.5px] border-gray-800 pointer-events-auto flex items-center justify-center overflow-hidden">
+               {/* Inner glow for the bump */}
+               <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent opacity-30" />
+            </div>
+
+            {/* Glowing arc line over the bump */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full border-t-2 border-neon/50 shadow-[0_-5px_15px_rgba(255,0,127,0.3)] pointer-events-none" />
+            
+            {/* Nav Items Container */}
+            <div className="relative z-10 grid grid-cols-5 h-16 w-full items-center pointer-events-auto">
+              
+              {/* 1. Confess */}
+              <button
+                onClick={() => handleNavClick('/confessions')}
+                className={`flex flex-col items-center justify-center gap-1 ${isActive('/confessions') ? 'text-white' : 'text-gray-500'}`}
+              >
+                <MessageSquarePlus className={`w-5 h-5 transition-transform ${isActive('/confessions') ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''}`} strokeWidth={isActive('/confessions') ? 2.5 : 2} />
+                <span className="text-[9px] font-bold tracking-wider">CONFESS</span>
+              </button>
+
+              {/* 2. Playground */}
+              <button
+                onClick={() => handleNavClick('/playground')}
+                className={`flex flex-col items-center justify-center gap-1 relative ${isActive('/playground') ? 'text-white' : 'text-gray-500'}`}
+              >
+                <Gamepad2 className={`w-5 h-5 transition-transform ${isActive('/playground') ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''}`} strokeWidth={isActive('/playground') ? 2.5 : 2} />
+                <span className="text-[9px] font-bold tracking-wider uppercase">PLAYGROUND</span>
+              </button>
+
+              {/* 3. Center Spacer */}
+              <div className="w-full h-full" />
+
+              {/* 4. Sparx */}
+              <button
+                onClick={() => handleNavClick('/sparx')}
+                className={`flex flex-col items-center justify-center gap-1 ${isActive('/sparx') ? 'text-white' : 'text-gray-500'}`}
+              >
+                <Zap className={`w-5 h-5 transition-transform ${isActive('/sparx') ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''}`} strokeWidth={isActive('/sparx') ? 2.5 : 2} />
+                <span className="text-[9px] font-bold tracking-wider">SPARX</span>
+              </button>
+
+              {/* 5. Chats */}
+              <button
+                onClick={() => handleNavClick('/matches')}
+                className={`flex flex-col items-center justify-center gap-1 relative ${isActive('/matches') ? 'text-white' : 'text-gray-500'}`}
+              >
+                <div className="relative">
+                  <MessageCircle className={`w-5 h-5 transition-transform ${isActive('/matches') ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''}`} strokeWidth={isActive('/matches') ? 2.5 : 2} />
+                  {unreadMessageCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] flex items-center justify-center bg-neon text-white text-[8px] font-bold rounded-full px-1 shadow-[0_0_5px_rgba(255,0,127,0.5)]">
+                      {unreadMessageCount}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[9px] font-bold tracking-wider">CHATS</span>
+              </button>
+            </div>
+
+            {/* Center Floating Button (Discover/Home) */}
             <button
               onClick={() => handleNavClick('/home')}
-              className={`p-2 flex flex-col items-center gap-1 ${isActive('/home') ? 'text-neon' : 'text-gray-600'}`}
+              className="absolute left-1/2 -translate-x-1/2 bottom-8 w-14 h-14 flex flex-col items-center justify-center rounded-full z-20 transition-transform active:scale-95 pointer-events-auto"
             >
-              <div className={`p-1 rounded-xl ${isActive('/home') ? 'bg-neon/10' : ''}`}>
-                <Search className="w-6 h-6" />
+              <div className={`w-full h-full rounded-full flex items-center justify-center bg-gradient-to-tr ${isActive('/home') ? 'from-neon to-purple-600 shadow-[0_0_20px_rgba(255,0,127,0.8)]' : 'from-gray-800 to-gray-700 shadow-[0_4px_10px_rgba(0,0,0,0.5)]'}`}>
+                <Search className={`w-6 h-6 ${isActive('/home') ? 'text-white' : 'text-gray-300'}`} strokeWidth={2.5} />
               </div>
-              <span className="text-[10px] font-bold tracking-wider">DISCOVER</span>
-            </button>
-
-            <button
-              onClick={() => handleNavClick('/matches')}
-              className={`p-2 flex flex-col items-center gap-1 ${isActive('/matches') ? 'text-neon' : 'text-gray-600'}`}
-            >
-              <div className={`p-1 rounded-xl ${isActive('/matches') ? 'bg-neon/10' : ''}`}>
-                <MessageCircle className="w-6 h-6" />
-              </div>
-              <span className="text-[10px] font-bold tracking-wider">CHATS</span>
-            </button>
-
-            <button
-              onClick={() => handleNavClick('/confessions')}
-              className={`p-2 flex flex-col items-center gap-1 ${isActive('/confessions') ? 'text-neon' : 'text-gray-600'}`}
-            >
-              <div className={`p-1 rounded-xl ${isActive('/confessions') ? 'bg-neon/10' : ''}`}>
-                <MessageSquarePlus className="w-6 h-6" />
-              </div>
-              <span className="text-[10px] font-bold tracking-wider">CONFESS</span>
-            </button>
-
-            <button
-              onClick={() => handleNavClick('/sparx')}
-              className={`p-2 flex flex-col items-center gap-1 ${isActive('/sparx') ? 'text-neon' : 'text-gray-600'}`}
-            >
-              <div className={`p-1 rounded-xl ${isActive('/sparx') ? 'bg-neon/10' : ''}`}>
-                <Zap className="w-6 h-6" />
-              </div>
-              <span className="text-[10px] font-bold tracking-wider">SPARX</span>
-            </button>
-
-            <button
-              onClick={() => handleNavClick('/profile')}
-              className={`p-2 flex flex-col items-center gap-1 ${isActive('/profile') ? 'text-neon' : 'text-gray-600'}`}
-            >
-              <div className={`p-1 rounded-xl ${isActive('/profile') ? 'bg-neon/10' : ''}`}>
-                <User className="w-6 h-6" />
-              </div>
-              <span className="text-[10px] font-bold tracking-wider">ME</span>
+              {isActive('/home') && <span className="absolute -bottom-5 text-[10px] font-bold text-neon tracking-wider drop-shadow-[0_0_4px_rgba(255,0,127,0.8)]">DISCOVER</span>}
             </button>
           </nav>
         )}

@@ -5,7 +5,7 @@ import { useCall } from '../context/CallContext';
 import { usePresence } from '../context/PresenceContext';
 import { MatchProfile, Message } from '../types';
 import { useToast } from '../context/ToastContext';
-import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Gamepad2, Check, CheckCheck, ArrowDown, Sparkles, Plus, Trophy, Tv, Music, Lightbulb, HelpCircle, Dices } from 'lucide-react';
+import { ArrowLeft, Send, Phone, Video, MoreVertical, Ghost, Shield, Clock, User, AlertTriangle, Ban, Loader2, BadgeCheck, Gamepad2, Check, CheckCheck, ArrowDown, Sparkles, Plus, Trophy, Tv, Music, Lightbulb, HelpCircle, Dices, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PermissionModal } from '../components/PermissionModal';
 import { blockUser, unblockUser, checkBlockStatus } from '../services/blockService';
@@ -86,9 +86,30 @@ export const Chat: React.FC = () => {
     [matchId]
   );
 
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(`deleted_messages_${matchId}`);
+      return new Set(stored ? JSON.parse(stored) : []);
+    }
+    return new Set();
+  });
+
+  const [clearedAt, setClearedAt] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(`cleared_chat_${matchId}`);
+      return stored ? parseInt(stored, 10) : 0;
+    }
+    return 0;
+  });
+
   const messages: Message[] = React.useMemo(() => {
     if (!liveMessages) return [];
-    return liveMessages.map(m => ({
+    return liveMessages
+      .filter(m => {
+        const msgTime = new Date(m.created_at).getTime();
+        return msgTime > clearedAt && !deletedIds.has(m.id);
+      })
+      .map(m => ({
       id: m.id,
       senderId: m.sender_id,
       text: m.text,
@@ -189,6 +210,10 @@ export const Chat: React.FC = () => {
 
   const [partnerIsTyping, setPartnerIsTyping] = useState(false);
   const [showGamesDrawer, setShowGamesDrawer] = useState(false);
+  const [showVirtualDateModal, setShowVirtualDateModal] = useState(false);
+  const [virtualDateType, setVirtualDateType] = useState<'cinema' | 'music' | null>(null);
+  const [virtualDateRoomName, setVirtualDateRoomName] = useState('');
+  const [isCreatingVirtualDate, setIsCreatingVirtualDate] = useState(false);
   const [selectedGame, setSelectedGame] = useState<'none' | '2tl' | 'wyr'>('none');
   const [twoTruths1, setTwoTruths1] = useState('');
   const [twoTruths2, setTwoTruths2] = useState('');
@@ -524,6 +549,97 @@ export const Chat: React.FC = () => {
         });
       }
     }, 1500);
+  };
+
+  const handleDeleteMessage = async (msgId: string) => {
+    try {
+      // 1. Hide locally for this device regardless of who sent it
+      const newDeleted = new Set(deletedIds);
+      newDeleted.add(msgId);
+      setDeletedIds(newDeleted);
+      localStorage.setItem(`deleted_messages_${matchId}`, JSON.stringify(Array.from(newDeleted)));
+
+      // 2. Also try to delete from Supabase if we sent it (optional, to permanently remove it from server)
+      const msg = liveMessages?.find(m => m.id === msgId);
+      if (msg && msg.sender_id === currentUser?.id) {
+        await supabase.from('messages').delete().eq('id', msgId);
+      }
+      
+      // 3. Remove from local Dexie database
+      await db.messages.delete(msgId);
+    } catch (e) {
+      console.error('Error deleting message:', e);
+    }
+  };
+
+  const handleClearChat = async () => {
+    showConfirm(
+      'Clear Chat',
+      'Are you sure you want to clear this chat? This will remove all messages from your view only.',
+      async () => {
+        try {
+          // 1. Hide locally for this device by setting a timestamp
+          const now = Date.now();
+          setClearedAt(now);
+          localStorage.setItem(`cleared_chat_${matchId}`, now.toString());
+
+          // 2. Clear our own messages from Supabase (if they ran the SQL policy)
+          const myMessages = await db.messages.where('match_id').equals(matchId)
+            .filter(m => m.sender_id === currentUser?.id)
+            .toArray();
+          const myMsgIds = myMessages.map(m => m.id);
+
+          if (myMsgIds.length > 0) {
+            await supabase.from('messages').delete().in('id', myMsgIds);
+          }
+
+          // 3. Bulk delete everything from local Dexie DB to save space
+          const allMsgs = await db.messages.where('match_id').equals(matchId).toArray();
+          await db.messages.bulkDelete(allMsgs.map(m => m.id));
+
+        } catch (e) {
+          console.error('Error clearing chat:', e);
+        }
+      },
+      true,
+      'Clear Chat'
+    );
+  };
+
+  const handleCreateVirtualDate = async () => {
+    if (!virtualDateRoomName.trim() || !virtualDateType || !currentUser || !matchId) return;
+    
+    setIsCreatingVirtualDate(true);
+    try {
+      const nameSlug = virtualDateRoomName.trim().substring(0, 30).replace(/[^a-zA-Z0-9]/g, '');
+      const uniqueId = Math.random().toString(36).substring(2, 7);
+      const roomUuid = `${virtualDateType}_${nameSlug}_${uniqueId}`;
+      const passcode = Math.floor(1000 + Math.random() * 9000).toString();
+
+      const inviteText = `[SYSTEM] [INVITE:v1] ${JSON.stringify({
+        action: 'join_room',
+        type: virtualDateType,
+        room: roomUuid,
+        url: `/sparx/${virtualDateType}?room=${roomUuid}&private=true&passcode=${passcode}`,
+        message: virtualDateType === 'cinema' ? 'Cinema Date Watch Party' : 'Music Jam Session'
+      })}`;
+
+      await supabase.from('messages').insert({
+        match_id: matchId,
+        sender_id: currentUser.id,
+        text: inviteText
+      });
+
+      setShowVirtualDateModal(false);
+      setVirtualDateType(null);
+      setVirtualDateRoomName('');
+      
+      navigate.push(`/sparx/${virtualDateType}?createName=${encodeURIComponent(virtualDateRoomName)}&room=${roomUuid}&private=true&passcode=${passcode}`);
+    } catch (e) {
+      console.error('Failed to create virtual date:', e);
+    } finally {
+      setIsCreatingVirtualDate(false);
+    }
   };
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -865,6 +981,7 @@ export const Chat: React.FC = () => {
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
                 <div className="absolute right-0 top-12 z-50 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-xl overflow-hidden">
                   <button onClick={() => { navigate.push(`/profile/${partner.id}`); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-gray-300 hover:bg-gray-800"><User className="w-4 h-4" /> View Profile</button>
+                  <button onClick={() => { setShowMenu(false); handleClearChat(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-red-400 hover:bg-gray-800 border-b border-gray-800/50"><Trash2 className="w-4 h-4" /> Clear Chat</button>
                   <button onClick={() => { setShowMenu(false); handleBlockUser(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-gray-300 hover:bg-gray-800"><Ban className="w-4 h-4" /> {isBlocked ? 'Unblock' : 'Block'}</button>
                   <button onClick={() => { navigate.push(`/contact?reportUserId=${partner.id}&reportUserName=${partner.realName || partner.anonymousId}`); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-red-400 hover:bg-gray-800"><AlertTriangle className="w-4 h-4" /> Report</button>
                   <div className="border-t border-gray-800 px-4 py-2.5">
@@ -1228,7 +1345,7 @@ export const Chat: React.FC = () => {
                 {!isMe && <div className="w-8 h-8 flex-shrink-0">{(!messages[i - 1] || messages[i - 1].senderId !== msg.senderId) && <img src={getOptimizedUrl(partner.avatar, 64)} className="w-8 h-8 rounded-full border border-gray-800 object-cover" />}</div>}
                 <div 
                   onDoubleClick={() => handleMessageDoubleClick(msg.id, msg.reaction)}
-                  className={`relative px-4 py-2.5 rounded-2xl text-sm break-words break-all min-w-0 select-none cursor-pointer transition-all active:scale-[0.98] duration-300 ${
+                  className={`relative px-4 py-2.5 rounded-2xl text-sm break-words break-all min-w-0 select-none cursor-pointer transition-all active:scale-[0.98] duration-300 group ${
                     isMe 
                       ? 'bg-gradient-to-r from-neon to-[#d6006b] border border-white/10 text-white rounded-br-none shadow-[0_4px_12px_rgba(255,0,127,0.3)]' 
                       : 'bg-white/5 backdrop-blur-md border border-white/10 text-gray-100 rounded-bl-none shadow-[0_4px_30px_rgba(0,0,0,0.15)] hover:bg-white/10 hover:border-white/20'
@@ -1256,6 +1373,13 @@ export const Chat: React.FC = () => {
                       )
                     )}
                   </div>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }}
+                    className={`opacity-0 group-hover:opacity-100 transition-opacity absolute top-1/2 -translate-y-1/2 ${isMe ? '-left-8' : '-right-8'} p-1.5 bg-gray-900/80 hover:bg-red-500/20 hover:text-red-400 rounded-full border border-gray-700 backdrop-blur-md text-gray-400 z-10`}
+                    title="Delete Message"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -1296,7 +1420,7 @@ export const Chat: React.FC = () => {
           </div>
         )}
         <form onSubmit={handleSend} className="max-w-4xl mx-auto flex items-end gap-2 px-2 pb-2 relative">
-          <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl flex items-center gap-2 px-3 py-1 shadow-inner focus-within:border-gray-600 transition-colors relative">
+          <div className="flex-1 min-w-0 bg-gray-900 border border-gray-800 rounded-2xl flex items-center gap-2 px-3 py-1 shadow-inner focus-within:border-gray-600 transition-colors relative">
             <button
               type="button"
               onClick={() => {
@@ -1320,12 +1444,23 @@ export const Chat: React.FC = () => {
                 Play Icebreakers & Games!
               </div>
             </button>
+            <button
+              type="button"
+              onClick={() => setShowVirtualDateModal(true)}
+              aria-label="Start Virtual Date"
+              className="p-2 text-gray-500 hover:text-rose-400 transition-colors rounded-full relative group"
+            >
+              <Sparkles className="w-5 h-5" />
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 hidden group-hover:block bg-gray-950 border border-rose-500/20 px-2.5 py-1.5 rounded-xl text-[10px] text-rose-300 font-bold whitespace-nowrap shadow-2xl backdrop-blur-md z-45 transition-all">
+                Start a Virtual Date!
+              </div>
+            </button>
             <input
               value={newMessage}
               onChange={e => handleInputChange(e.target.value)}
               placeholder={activeGame ? "Type a message..." : "Type a message, or start an icebreaker..."}
               aria-label="Message input"
-              className="flex-1 bg-transparent py-3 text-sm text-white placeholder-gray-500 outline-none min-h-[44px] max-h-32"
+              className="flex-1 min-w-0 text-ellipsis overflow-hidden bg-transparent py-3 text-sm text-white placeholder-gray-500 outline-none min-h-[44px] max-h-32"
             />
             {showGamesDrawer && (
               <>
@@ -1521,13 +1656,106 @@ export const Chat: React.FC = () => {
               </>
             )}
           </div>
-          <button type="submit" disabled={!newMessage.trim()} aria-label="Send message" className="p-3 rounded-full bg-neon text-white shadow-lg hover:bg-[#d6006b] transition-all disabled:opacity-50">
+          <button type="submit" disabled={!newMessage.trim()} aria-label="Send message" className="shrink-0 p-3 rounded-full bg-neon text-white shadow-lg hover:bg-[#d6006b] transition-all disabled:opacity-50">
             <Send className="w-5 h-5 fill-current" aria-hidden="true" />
           </button>
         </form>
       </div>
     </div>
   </div>
+
+  {showVirtualDateModal && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative animate-[scaleIn_0.2s_ease-out]">
+        <button 
+          onClick={() => setShowVirtualDateModal(false)}
+          className="absolute top-4 right-4 p-2 bg-gray-800/50 hover:bg-gray-700 rounded-full text-gray-400 hover:text-white transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="text-center mb-8 mt-2">
+          <div className="w-16 h-16 bg-gradient-to-tr from-rose-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(244,63,94,0.4)]">
+            <Sparkles className="w-8 h-8 text-white" />
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-2">Virtual Date</h3>
+          <p className="text-gray-400 text-sm">Choose an experience to share with your partner right now.</p>
+        </div>
+        
+        <div className="grid gap-3">
+          {virtualDateType === null ? (
+            <>
+              <button
+                onClick={() => setVirtualDateType('cinema')}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-gray-800/50 hover:bg-rose-500/10 border border-gray-700/50 hover:border-rose-500/30 transition-all group active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 bg-gray-800 group-hover:bg-rose-500/20 rounded-full flex items-center justify-center transition-colors">
+                  <Tv className="w-6 h-6 text-gray-400 group-hover:text-rose-400" />
+                </div>
+                <div className="text-left flex-1">
+                  <h4 className="text-white font-bold group-hover:text-rose-400 transition-colors">Movie Time</h4>
+                  <p className="text-xs text-gray-400">Watch YouTube videos together</p>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setVirtualDateType('music')}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-gray-800/50 hover:bg-cyan-500/10 border border-gray-700/50 hover:border-cyan-500/30 transition-all group active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 bg-gray-800 group-hover:bg-cyan-500/20 rounded-full flex items-center justify-center transition-colors">
+                  <Music className="w-6 h-6 text-gray-400 group-hover:text-cyan-400" />
+                </div>
+                <div className="text-left flex-1">
+                  <h4 className="text-white font-bold group-hover:text-cyan-400 transition-colors">Music Jamming</h4>
+                  <p className="text-xs text-gray-400">Listen to Spotify together</p>
+                </div>
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col gap-4 animate-[fadeIn_0.2s_ease-out]">
+              <div className="flex items-center gap-3 text-gray-300 mb-2">
+                <button 
+                  onClick={() => setVirtualDateType(null)}
+                  className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <span className="font-semibold text-sm">
+                  {virtualDateType === 'cinema' ? 'Create Cinema Room' : 'Create Music Lounge'}
+                </span>
+              </div>
+              
+              <input
+                autoFocus
+                type="text"
+                value={virtualDateRoomName}
+                onChange={e => setVirtualDateRoomName(e.target.value)}
+                placeholder="Enter room name (e.g. Movie Night)"
+                maxLength={30}
+                className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-rose-500/50 transition-colors"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleCreateVirtualDate();
+                }}
+              />
+              
+              <div className="flex items-center gap-2 p-3 bg-gray-950/50 rounded-xl border border-gray-800/50">
+                <Shield className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-gray-400">This room will be <strong className="text-emerald-400 font-semibold">Private</strong> and an invite will be automatically sent to your partner.</span>
+              </div>
+
+              <button
+                onClick={handleCreateVirtualDate}
+                disabled={!virtualDateRoomName.trim() || isCreatingVirtualDate}
+                className="w-full py-3 bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2 mt-2"
+              >
+                {isCreatingVirtualDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {isCreatingVirtualDate ? 'Creating...' : 'Create & Invite'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )}
 </div>
   );
 };
