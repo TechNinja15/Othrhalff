@@ -47,7 +47,11 @@ export const Contact: React.FC = () => {
     }
 
     return (
+<<<<<<< HEAD
         <div className="h-screen w-full overflow-y-auto overflow-x-hidden bg-black text-white font-sans flex flex-col">
+=======
+        <main className="h-screen w-full overflow-y-auto overflow-x-hidden bg-black text-white font-sans flex flex-col">
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             {/* Header */}
             <div className="px-4 py-3 bg-black/95 backdrop-blur-md border-b border-gray-800 flex items-center gap-3">
                 <button
@@ -79,10 +83,18 @@ export const Contact: React.FC = () => {
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Email */}
                         <div>
+<<<<<<< HEAD
                             <label className="block text-sm font-medium text-gray-300 mb-2">
                                 Your Email
                             </label>
                             <input
+=======
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                                Your Email
+                            </label>
+                            <input
+                                id="email"
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -94,10 +106,18 @@ export const Contact: React.FC = () => {
 
                         {/* Subject */}
                         <div>
+<<<<<<< HEAD
                             <label className="block text-sm font-medium text-gray-300 mb-2">
                                 Subject
                             </label>
                             <input
+=======
+                            <label htmlFor="subject" className="block text-sm font-medium text-gray-300 mb-2">
+                                Subject
+                            </label>
+                            <input
+                                id="subject"
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
                                 type="text"
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
@@ -109,10 +129,18 @@ export const Contact: React.FC = () => {
 
                         {/* Message */}
                         <div>
+<<<<<<< HEAD
                             <label className="block text-sm font-medium text-gray-300 mb-2">
                                 Message
                             </label>
                             <textarea
+=======
+                            <label htmlFor="message" className="block text-sm font-medium text-gray-300 mb-2">
+                                Message
+                            </label>
+                            <textarea
+                                id="message"
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                                 placeholder="Tell us more..."
@@ -142,6 +170,10 @@ export const Contact: React.FC = () => {
                     </div>
                 </div>
             </div>
+<<<<<<< HEAD
         </div>
+=======
+        </main>
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     );
 };

@@ -75,6 +75,7 @@ export const Onboarding: React.FC = () => {
           .single();
 
         if (existingProfile && !error) {
+<<<<<<< HEAD
           // Check if old user needs to set a username and password
           if (!existingProfile.username) {
             setNeedsMigration(true);
@@ -102,6 +103,13 @@ export const Onboarding: React.FC = () => {
           const appUser: UserProfile = {
             id: existingProfile.id,
             username: existingProfile.username,
+=======
+          // Profile exists! Skip onboarding and redirect to home
+          // Missing username can be set up later in the Account settings (Profile view)
+          const appUser: UserProfile = {
+            id: existingProfile.id,
+            username: existingProfile.username || undefined,
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             anonymousId: existingProfile.anonymous_id,
             realName: existingProfile.real_name,
             gender: existingProfile.gender,
@@ -209,6 +217,11 @@ export const Onboarding: React.FC = () => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const MAX_SIZE = 2 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        alert("Please upload an image smaller than 2MB.");
+        return;
+      }
       const base64 = await authService.uploadAvatar(file);
       setTempProfile(prev => ({ ...prev, avatar: base64 }));
     }

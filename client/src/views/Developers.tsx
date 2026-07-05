@@ -54,7 +54,11 @@ export const Developers: React.FC = () => {
   ];
 
   return (
+<<<<<<< HEAD
     <div className="h-screen h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-black flex flex-col items-center relative py-20 px-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+=======
+    <main className="h-screen h-[100dvh] w-full overflow-y-auto overflow-x-hidden bg-black flex flex-col items-center relative py-20 px-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
       {/* Background Ambience */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-20%] right-[10%] w-[800px] h-[800px] bg-neon/5 blur-[120px] rounded-full animate-pulse-slow" />
@@ -144,6 +148,10 @@ export const Developers: React.FC = () => {
           </p>
         </div>
       </div>
+<<<<<<< HEAD
     </div>
+=======
+    </main>
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
   );
 };

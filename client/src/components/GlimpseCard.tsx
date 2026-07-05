@@ -342,6 +342,10 @@ export const GlimpseCard: React.FC<GlimpseCardProps> = ({
                 src={getOptimizedUrl(glimpse.profiles.avatar, 64)}
                 alt="Avatar"
                 className="w-full h-full object-cover"
+<<<<<<< HEAD
+=======
+                referrerPolicy="no-referrer"
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
               />
             ) : (
               <div className="w-full h-full bg-neon/10 flex items-center justify-center text-neon text-xs font-bold font-mono">

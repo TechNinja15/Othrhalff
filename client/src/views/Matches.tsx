@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { usePresence } from '../context/PresenceContext';
+<<<<<<< HEAD
+=======
+import { useNotifications } from '../context/NotificationContext';
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 import { supabase } from '../lib/supabase';
 import { MatchProfile } from '../types';
 import { useRouter as useNavigate } from 'next/navigation';
@@ -8,6 +12,10 @@ import { Search, Ghost, Loader2, BadgeCheck } from 'lucide-react';
 import { getOptimizedUrl } from '../utils/image';
 import { getRandomQuote } from '../data/loadingQuotes';
 import { LoadingState } from '../components/LoadingState';
+<<<<<<< HEAD
+=======
+import { buildRealtimeIdFilter, chunkIds } from '../utils/realtime';
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 
 interface ChatPreview {
   id: string;
@@ -83,7 +91,11 @@ const ChatPreviewItem = React.memo<ChatPreviewItemProps>(({ chat, isOnline, onSe
       className="group relative bg-gray-900/30 hover:bg-gray-800/50 border border-gray-800/50 hover:border-gray-700 rounded-2xl p-4 transition-all duration-300 cursor-pointer active:scale-[0.98]">
       <div className="flex items-center gap-4">
         <div className="relative">
+<<<<<<< HEAD
           <img src={getOptimizedUrl(chat.partner.avatar, 64)} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-gray-800 group-hover:border-gray-600 transition-colors" />
+=======
+          <img src={getOptimizedUrl(chat.partner.avatar, 64)} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-gray-800 group-hover:border-gray-600 transition-colors" referrerPolicy="no-referrer" />
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
           {isOnline && <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-black rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>}
         </div>
         <div className="flex-1 min-w-0">
@@ -110,7 +122,12 @@ ChatPreviewItem.displayName = 'ChatPreviewItem';
 
 export const Matches: React.FC = () => {
   const { currentUser } = useAuth();
+<<<<<<< HEAD
   const { isUserOnline, subscribeToUser, unsubscribeFromUser } = usePresence();
+=======
+  const { isUserOnline, subscribeToUsers, unsubscribeFromUser } = usePresence();
+  const { setUnreadMessageCount } = useNotifications();
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
   const navigate = useNavigate();
 
   // 1. Initialize state variables to null / empty arrays to avoid SSR issues
@@ -163,6 +180,7 @@ export const Matches: React.FC = () => {
     if (!isBackground && !hasCache) setLoading(true);
 
     try {
+<<<<<<< HEAD
       const { data: matchesData, error: matchesError } = await supabase
         .from('matches')
         .select('id, user_a, user_b')
@@ -211,6 +229,19 @@ export const Matches: React.FC = () => {
           id: m.id,
           partner: {
             id: partnerId,
+=======
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_matches_with_preview', { current_user_id: currentUser.id });
+
+      if (rpcError) throw rpcError;
+
+      const mappedChats: ChatPreview[] = (rpcData || []).map((row: any) => {
+        const partner = row.partner_profile || {};
+        return {
+          id: row.match_id,
+          partner: {
+            id: row.partner_id,
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             anonymousId: partner.anonymous_id || 'Unknown',
             realName: partner.real_name || 'User',
             avatar: partner.avatar,
@@ -225,6 +256,7 @@ export const Matches: React.FC = () => {
             matchPercentage: 0,
             distance: 'Connected'
           },
+<<<<<<< HEAD
           lastMessage: lastMessage ? (lastMessage.text || '') : null,
           lastMessageTime: lastMessage ? new Date(lastMessage.created_at).getTime() : null,
           unreadCount: unreadCount || 0
@@ -232,6 +264,15 @@ export const Matches: React.FC = () => {
       }));
 
       // Already sorted by RPC, but ensure client-side consistency
+=======
+          lastMessage: row.last_message === 'New Match!' ? null : row.last_message,
+          lastMessageTime: row.last_message_time ? new Date(row.last_message_time).getTime() : null,
+          unreadCount: Number(row.unread_count) || 0
+        };
+      });
+
+      // Ensure client-side consistency sort by last message time
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
       mappedChats.sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
 
       // Client-side deduplication safeguard: Keep only first match per unique partner
@@ -269,6 +310,7 @@ export const Matches: React.FC = () => {
     }, 1000); // Wait 1s for database to settle
   }, [loadMatches]);
 
+<<<<<<< HEAD
   // 4. Initial Load & Realtime
   useEffect(() => {
     loadMatches();
@@ -307,11 +349,117 @@ export const Matches: React.FC = () => {
       })
       // UPDATE: is_read changed (e.g. partner marked messages read)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => {
+=======
+  // 4. Initial Load & Realtime Match-Specific Subscriptions
+  useEffect(() => {
+    loadMatches();
+  }, [loadMatches]);
+
+  useEffect(() => {
+    if (!currentUser || chats.length === 0) return;
+
+    const matchIds = chats.map(c => c.id).sort();
+    const matchIdsKey = matchIds.join(',');
+    const channelNonce = Math.random().toString(36).slice(2);
+    let messageChannels: ReturnType<typeof supabase.channel>[] = [];
+
+    const removeMessageChannels = () => {
+      messageChannels.forEach(ch => supabase.removeChannel(ch));
+      messageChannels = [];
+    };
+
+    messageChannels = chunkIds(matchIds).map((ids, index) =>
+      supabase
+        .channel(`matches-page-messages-${currentUser.id}-${channelNonce}-${index}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages', filter: buildRealtimeIdFilter('match_id', ids) },
+          (payload) => {
+            const msg = payload.new as any;
+            setChats(prev => {
+              const matchId = msg.match_id;
+              const chatIndex = prev.findIndex(c => c.id === matchId);
+              if (chatIndex === -1) {
+                // New match we don't have yet — fall back to full refresh
+                refreshMatches();
+                return prev;
+              }
+
+              const updated = [...prev];
+              const chat = { ...updated[chatIndex] };
+              chat.lastMessage = msg.content || msg.text || '';
+              chat.lastMessageTime = msg.created_at ? new Date(msg.created_at).getTime() : Date.now();
+              if (msg.sender_id !== currentUser?.id) {
+                chat.unreadCount = (chat.unreadCount || 0) + 1;
+              }
+              updated[chatIndex] = chat;
+
+              // Re-sort
+              updated.sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
+              writeCache(updated);
+
+              // Update global count
+              const totalUnreads = updated.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+              setUnreadMessageCount(totalUnreads);
+
+              return updated;
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'messages', filter: buildRealtimeIdFilter('match_id', ids) },
+          (payload) => {
+            const msg = payload.new as any;
+            setChats(prev => {
+              const matchId = msg.match_id;
+              const chatIndex = prev.findIndex(c => c.id === matchId);
+              if (chatIndex === -1) return prev;
+
+              // Avoid full reload on read receipt updates; only update locally if sender is partner
+              if (msg.sender_id !== currentUser?.id && msg.is_read) {
+                const updated = [...prev];
+                const chat = { ...updated[chatIndex] };
+                chat.unreadCount = 0; // marked read
+                updated[chatIndex] = chat;
+                writeCache(updated);
+
+                // Update global count
+                const totalUnreads = updated.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+                setUnreadMessageCount(totalUnreads);
+                return updated;
+              }
+              return prev;
+            });
+          }
+        )
+        .subscribe()
+    );
+
+    return () => {
+      removeMessageChannels();
+    };
+  }, [chats.map(c => c.id).sort().join(','), currentUser, refreshMatches, setUnreadMessageCount]);
+
+  // Subscribe to new match insertions where current user is a participant
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const channelA = supabase.channel(`matches-insert-a-${currentUser.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches', filter: `user_a=eq.${currentUser.id}` }, () => {
+        refreshMatches();
+      })
+      .subscribe();
+
+    const channelB = supabase.channel(`matches-insert-b-${currentUser.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches', filter: `user_b=eq.${currentUser.id}` }, () => {
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
         refreshMatches();
       })
       .subscribe();
 
     return () => {
+<<<<<<< HEAD
       supabase.removeChannel(channel);
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
     };
@@ -333,6 +481,45 @@ export const Matches: React.FC = () => {
       chats.forEach(chat => unsubscribeFromUser(chat.partner.id));
     };
   }, [chats, subscribeToUser, unsubscribeFromUser]);
+=======
+      supabase.removeChannel(channelA);
+      supabase.removeChannel(channelB);
+    };
+  }, [currentUser, refreshMatches]);
+
+  const partnerIds = useMemo(() => {
+    return Array.from(new Set(chats.map(chat => chat.partner.id))).sort();
+  }, [chats]);
+
+  const partnerIdsKey = partnerIds.join(',');
+
+  useEffect(() => {
+    if (partnerIds.length === 0) return;
+    subscribeToUsers(partnerIds);
+    return () => {
+      partnerIds.forEach(id => unsubscribeFromUser(id));
+    };
+  }, [partnerIdsKey, subscribeToUsers, unsubscribeFromUser]);
+
+  const filteredChats = useMemo(() => {
+    return chats.filter(chat => {
+      const name = (chat.partner.realName || '').toLowerCase();
+      const anonId = (chat.partner.anonymousId || '').toLowerCase();
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = name.includes(term) || anonId.includes(term);
+
+      if (!matchesSearch) return false;
+
+      if (filter === 'unread') {
+        return (chat.unreadCount || 0) > 0;
+      }
+      if (filter === 'online') {
+        return isUserOnline(chat.partner.id);
+      }
+      return true;
+    });
+  }, [chats, searchTerm, filter, isUserOnline]);
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 
   if (loading) {
     return (

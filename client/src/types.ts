@@ -32,6 +32,10 @@ export interface Message {
   isRead?: boolean;
   status?: 'sent' | 'sending' | 'failed';
   reaction?: string;
+<<<<<<< HEAD
+=======
+  parsedGame?: any;
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 }
 
 export interface ChatSession {

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+=======
+import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo } from 'react';
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
 import { X, CheckCircle, AlertOctagon, Info, AlertTriangle } from 'lucide-react';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -45,8 +49,15 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
     }, [removeToast]);
 
+<<<<<<< HEAD
     return (
         <ToastContext.Provider value={{ showToast, removeToast }}>
+=======
+    const toastContextValue = useMemo(() => ({ showToast, removeToast }), [showToast, removeToast]);
+
+    return (
+        <ToastContext.Provider value={toastContextValue}>
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             {children}
 
             {/* Toast Container */}

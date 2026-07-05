@@ -61,7 +61,11 @@ export const Careers: React.FC = () => {
     };
 
     return (
+<<<<<<< HEAD
         <div className="h-screen w-full overflow-y-auto overflow-x-hidden bg-black text-white font-sans flex flex-col">
+=======
+        <main className="h-screen w-full overflow-y-auto overflow-x-hidden bg-black text-white font-sans flex flex-col">
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
             {/* Header */}
             <div className="p-6 border-b border-gray-900 bg-black/50 backdrop-blur-md sticky top-0 z-20 flex items-center gap-4">
                 <button onClick={() => navigate.back()} className="p-2 hover:bg-gray-800 rounded-full transition-colors">
@@ -212,6 +216,10 @@ export const Careers: React.FC = () => {
                     </div>
                 </div>
             )}
+<<<<<<< HEAD
         </div>
+=======
+        </main>
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     );
 };
