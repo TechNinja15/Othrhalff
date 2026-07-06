@@ -43,8 +43,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   // Fetch real-time unread messages count for the chat badge
   useEffect(() => {
-    if (!currentUser || !supabase) return;
-
     const fetchUnreadCount = async () => {
       try {
         // First get active matches for the user
@@ -123,11 +121,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   const navItems = [
     { path: '/home', icon: Search, label: 'Discover' },
-    { path: '/matches', icon: MessageCircle, label: 'Messages', badge: unreadMessageCount > 0 ? unreadMessageCount : undefined },
-    { path: '/notifications', icon: Bell, label: 'Notifications', isPulse: unreadCount > 0 },
+    { path: '/matches', icon: MessageCircle, label: 'Messages', badge: unreadMessageCount ? unreadMessageCount : undefined },
+    { path: '/notifications', icon: Bell, label: 'Notifications', isPulse: !!unreadCount },
     { path: '/confessions', icon: MessageSquarePlus, label: 'Confessions' },
     { path: '/sparx', icon: Zap, label: 'Sparx' },
-    { path: '/profile', icon: User, label: 'My Profile' },
+    { path: '/profile', icon: User, label: 'My Profile' }
   ];
 
   const isHome = pathname === '/home';
@@ -249,24 +247,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </div>
                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-black rounded-full animate-pulse shadow-md"></div>
               </div>
+            </div>
 
-              {/* Info */}
-              <div className={`overflow-hidden transition-all duration-300 whitespace-nowrap ${isHome ? 'max-w-[150px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[150px] group-hover/sidebar:opacity-100'}`}>
-                <p className="text-sm font-bold text-white truncate group-hover:text-neon transition-colors">
-                  {currentUser?.realName || 'Anonymous'}
+            {/* Info */}
+            <div className={`ml-3 overflow-hidden transition-all duration-300 whitespace-nowrap ${isHome ? 'max-w-[150px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[150px] group-hover/sidebar:opacity-100'}`}>
+              <p className="text-sm font-bold text-white truncate group-hover:text-neon transition-colors">
+                {currentUser?.realName || 'Anonymous'}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-neon/50"></div>
+                <p className="text-[10px] text-gray-500 font-mono uppercase tracking-wider truncate">
+                  {currentUser?.anonymousId || 'GUEST'}
                 </p>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-neon/50"></div>
-                  <p className="text-[10px] text-gray-500 font-mono uppercase tracking-wider truncate">
-                    {currentUser?.anonymousId || 'GUEST'}
-                  </p>
-                </div>
               </div>
+            </div>
 
-              {/* Options Icon */}
-              <button aria-label="Profile options" className={`text-gray-600 hover:text-white transition-colors duration-300 shrink-0 overflow-hidden ${isHome ? 'max-w-[20px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[20px] group-hover/sidebar:opacity-100'}`}>
-                <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
-              </button>
+            {/* Options Icon */}
+            <div className={`text-gray-600 hover:text-white transition-colors duration-300 shrink-0 ml-auto overflow-hidden ${isHome ? 'max-w-[20px] opacity-100' : 'opacity-0 max-w-0 group-hover/sidebar:max-w-[20px] group-hover/sidebar:opacity-100'}`}>
+              <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
             </div>
           </div>
         </div>

@@ -33,7 +33,7 @@ const PageLayout: React.FC<{ title: string; icon: React.ReactNode; children: Rea
           &copy; {new Date().getFullYear()} Othrhalff Inc. All rights reserved.
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 

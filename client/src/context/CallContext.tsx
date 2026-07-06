@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { subscribeToIncomingCalls, CallSession, answerCall as answerCallAPI, rejectCall as rejectCallAPI, endCall as endCallAPI } from '../services/callSignaling';
 import { supabase } from '../lib/supabase';
@@ -195,7 +195,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setOutgoingCall(null); // Clear outgoing call modal
   };
 
-  const endCall = () => {
+  const endCall = useCallback(() => {
     setIsCallActive(false);
     setAppId('');
     setChannelName('');
@@ -205,7 +205,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCallSessionId('');
     setOutgoingCall(null);
     setOutgoingCallSessionId('');
-  };
+  }, []);
 
   // Cancel outgoing call — clears UI AND updates DB
   const cancelOutgoingCall = async () => {

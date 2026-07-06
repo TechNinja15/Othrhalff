@@ -110,7 +110,11 @@ create table public.user_presence (
     ```
 *   **All Operations**: Users can perform all operations (insert, update, delete) on their own presence entry.
     ```sql
+<<<<<<< HEAD
     create policy "Allow upsert own presence" on public.user_presence for all using (true) with check (auth.uid() = id);
+=======
+    create policy "Allow upsert own presence" on public.user_presence for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     ```
 
 ---
@@ -190,7 +194,11 @@ create table public.swipes (
     ```
 *   **All Operations**: Users can perform inserts or updates on swipes they initiate.
     ```sql
+<<<<<<< HEAD
     create policy "Allow upsert own swipes" on public.swipes for all using (true) with check (auth.uid() = liker_id);
+=======
+    create policy "Allow upsert own swipes" on public.swipes for all using (auth.uid() = liker_id) with check (auth.uid() = liker_id);
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     ```
 
 ---
@@ -783,7 +791,11 @@ begin
     select p.*
     from public.profiles p
     where p.id != user_id
+<<<<<<< HEAD
       and p.university = user_university
+=======
+      and lower(trim(split_part(p.university, ',', 1))) = lower(trim(split_part(user_university, ',', 1)))
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
       -- Exclude people they've already swiped on
       and not exists (
         select 1 from public.swipes s 
@@ -802,7 +814,11 @@ begin
     select p.*
     from public.profiles p
     where p.id != user_id
+<<<<<<< HEAD
       and p.university != user_university
+=======
+      and lower(trim(split_part(p.university, ',', 1))) != lower(trim(split_part(user_university, ',', 1)))
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
       -- Exclude people they've already swiped on
       and not exists (
         select 1 from public.swipes s 
@@ -851,7 +867,11 @@ begin
     join public.swipes s on s.target_id = p.id
     where s.liker_id = current_user_id
       and s.action = 'pass'
+<<<<<<< HEAD
       and p.university = user_university
+=======
+      and lower(trim(split_part(p.university, ',', 1))) = lower(trim(split_part(user_university, ',', 1)))
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     order by s.created_at desc;
   else -- Global mode
     return query
@@ -860,7 +880,11 @@ begin
     join public.swipes s on s.target_id = p.id
     where s.liker_id = current_user_id
       and s.action = 'pass'
+<<<<<<< HEAD
       and p.university != user_university
+=======
+      and lower(trim(split_part(p.university, ',', 1))) != lower(trim(split_part(user_university, ',', 1)))
+>>>>>>> c345bdeeec9320808b31a52a987c64dd3bc96059
     order by s.created_at desc;
   end if;
 end;

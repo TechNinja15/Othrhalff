@@ -16,6 +16,8 @@ import { getOptimizedUrl } from '../utils/image';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, LocalMessage } from '../lib/db';
 import Dexie from 'dexie';
+import { getCachedProfile } from '../services/profileCache';
+import { useNotifications } from '../context/NotificationContext';
 
 import { getRandomQuote } from '../data/loadingQuotes';
 import { 
